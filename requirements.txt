@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic
+motor              # Async MongoDB driver
+python-dotenv
+langchain          # To manage our prompts easily
+langchain-google-genai
