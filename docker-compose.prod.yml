@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:latest
+    container_name: shadow-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - shadow-network
+
+  backend:
+    # ADD THIS LINE VVV
+    image: YOUR_DOCKER_USERNAME/shadow-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: shadow-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+    networks:
+      - shadow-network
+
+  frontend:
+    # ADD THIS LINE VVV
+    image: praful.gaur.2@gmail.com/shadow-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # IMPORTANT: In production, this should be your DOMAIN or VPS IP
+        - VITE_API_BASE_URL=http://YOUR_VPS_IP_OR_DOMAIN:8000
+    container_name: shadow-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - shadow-network
+
+  # ... (mongo-express remains the same)

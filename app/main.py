@@ -24,14 +24,17 @@ from langchain_core.prompts import ChatPromptTemplate
 
 app = FastAPI(title="Shadow AI API")
 
+origins = [
+    "http://localhost:5173", # Vite Dev Server (Keep for local dev)
+    "http://localhost:3000", # Common React port
+    "http://localhost",      # Docker Frontend (Port 80) <-- THIS IS THE FIX
+    "http://localhost:80",   # Explicit Port 80
+    "http://127.0.0.1",      # IP variation
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",  # <--- ADD THIS ONE
-        "http://localhost:3000",
-        "http://localhost:8000"   # Good to have for standard React defaults
-    ],
+    allow_origins=origins, 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

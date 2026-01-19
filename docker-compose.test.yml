@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  # --- 1. THE DATABASE ---
+  mongo:
+    image: mongo:latest
+    container_name: shadow-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - shadow-network
+
+  # --- 2. THE BACKEND ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: shadow-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+    networks:
+      - shadow-network
+
+  # --- 3. THE FRONTEND ---
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_BASE_URL=http://localhost:8000
+    container_name: shadow-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - shadow-network
+
+  # --- 4. DB ADMIN PANEL (This was the issue) ---
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      # Add these lines:
+      ME_CONFIG_BASICAUTH_USERNAME: myadmin
+      ME_CONFIG_BASICAUTH_PASSWORD: mysecretpassword
+    depends_on:
+      - mongo
+    networks:
+      - shadow-network
+
+# --- 5. PERSISTENT STORAGE ---
+volumes:
+  mongo_data:
+
+networks:
+  shadow-network:
+    driver: bridge

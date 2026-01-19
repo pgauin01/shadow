@@ -1,8 +1,21 @@
 fastapi
 uvicorn
 pydantic
-motor              # Async MongoDB driver
+pydantic[email]
+email-validator
+motor
 python-dotenv
-langchain          # To manage our prompts easily
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+langchain
 langchain-google-genai
+langchain-community
+google-generativeai
+pinecone-client
+httpx
+requests
 dateparser
+langchain_pinecone
+google_auth_oauthlib
+argon2-cffi
