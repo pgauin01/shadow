@@ -18,6 +18,10 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # --- FIX: Create the JSON file before building ---
+      - name: Create Google Credentials File
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > client_secret.json
+
       - name: Build and Push Backend
         uses: docker/build-push-action@v4
         with:
@@ -32,7 +36,7 @@ jobs:
           context: .
           file: ./Dockerfile.frontend
           push: true
-          # Note: We bake the API URL into the build
+          # We bake the Server IP into the React build here
           build-args: |
             VITE_API_BASE_URL=http://${{ secrets.HOST_IP }}:8000
           tags: ${{ secrets.DOCKER_USERNAME }}/shadow-frontend:latest
@@ -50,8 +54,10 @@ jobs:
           host: ${{ secrets.HOST_IP }}
           username: ${{ secrets.HOST_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml,nginx.conf"
-          target: "/root/shadow-app"
+          # We only copy the docker-compose file.
+          # The code is already inside the Docker images we pushed above.
+          source: "docker-compose.prod.yml"
+          target: "/home/${{ secrets.HOST_USER }}/shadow-app"
 
       - name: Deploy on Server via SSH
         uses: appleboy/ssh-action@master
@@ -60,18 +66,22 @@ jobs:
           username: ${{ secrets.HOST_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /root/shadow-app
+            # 1. Go to the app directory (create if missing)
+            mkdir -p /home/${{ secrets.HOST_USER }}/shadow-app
+            cd /home/${{ secrets.HOST_USER }}/shadow-app
 
-            # 1. Create .env file dynamically on server (for security)
+            # 2. Create .env file dynamically on server (Security Best Practice)
             echo "MONGO_URL=mongodb://mongo:27017" > .env
             echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
             echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
+            # We also recreate the JSON file on the server just in case the app needs to read it at runtime
+            echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > client_secret.json
 
-            # 2. Pull latest images
+            # 3. Pull the latest images from Docker Hub
             docker compose -f docker-compose.prod.yml pull
 
-            # 3. Restart containers
+            # 4. Restart the containers with the new code
             docker compose -f docker-compose.prod.yml up -d
 
-            # 4. Cleanup unused images
+            # 5. Cleanup old/unused images to save space
             docker image prune -f
