@@ -1,257 +1,336 @@
 import { useState } from "react";
-import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
-  Loader2,
-  History,
   Sparkles,
-  Trash2,
+  BrainCircuit,
+  Flame,
+  CheckCircle2,
   Lightbulb,
+  Trash2,
+  FileText,
+  X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
 import { API_BASE } from "../config";
 import MarkdownView from "./MarkdownView";
+
+const normalizeType = (rawType) => {
+  if (!rawType) return "Activity";
+  // Handle "Daily Recap" specifically
+  if (rawType === "Daily Recap") return "Daily Recap";
+
+  const lower = rawType.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
 
 export default function Timeline({
   cards,
   setCards,
   user,
-  mode,
   panelColor,
   accentColor,
-  isSidebarOpen,
-  showInsights, // <--- 1. Receive the prop
+  showInsights,
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [filter, setFilter] = useState("All");
 
-  // --- ACTIONS ---
-  const handleSubmitNote = async (e) => {
+  // --- RECAP MODAL STATE ---
+  const [showRecap, setShowRecap] = useState(false);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapContent, setRecapContent] = useState("");
+
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+
     setLoading(true);
+    const tempId = Date.now().toString();
+    const tempCard = {
+      _id: tempId,
+      raw_text: input,
+      created_at: new Date().toISOString(),
+      ai_metadata: {
+        stream_type: "Activity",
+        summary: "Processing...",
+        impact_score: 0,
+        ai_comment: "Shadow is analyzing...",
+        tags: [],
+      },
+    };
+
+    setCards([tempCard, ...cards]);
+    setInput("");
+
     try {
       const res = await axios.post(`${API_BASE}/entries`, {
-        raw_text: input,
         user_id: user.id,
+        raw_text: tempCard.raw_text,
       });
-      setCards([res.data, ...cards]);
-      setInput("");
-    } catch (e) {
-      console.error("Failed to add note", e);
+      setCards((prev) => prev.map((c) => (c._id === tempId ? res.data : c)));
+    } catch (err) {
+      console.error(err);
+      setCards((prev) => prev.filter((c) => c._id !== tempId));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteEntry = async (id) => {
+  const handleDelete = async (id) => {
     try {
-      setCards(cards.filter((c) => c._id !== id));
       await axios.delete(`${API_BASE}/entries/${id}`);
-    } catch (e) {}
+      setCards(cards.filter((c) => c._id !== id));
+    } catch (e) {
+      console.error("Failed to delete entry", e);
+    }
   };
 
-  const generateInsight = async () => {
-    if (analyzing || !showInsights) return; // Guard clause
-    setAnalyzing(true);
+  // --- GENERATE / FETCH RECAP ---
+  const handleGenerateRecap = async () => {
+    setShowRecap(true);
+    setRecapLoading(true);
+    setRecapContent("");
 
     try {
-      await axios.post(`${API_BASE}/insights/generate`, null, {
+      const res = await axios.get(`${API_BASE}/insights/daily-recap`, {
         params: { user_id: user.id },
       });
-      // Success! Reload to show the new card
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      setAnalyzing(false);
+      setRecapContent(res.data.recap);
 
-      // --- NEW: Handle Rate Limit Error ---
-      if (e.response && e.response.status === 429) {
-        // Show the message from the backend ("Insight limit reached...")
-        alert("⏳ " + e.response.data.detail);
-      } else {
-        // Handle other errors (like 500 server error)
-        alert("⚠️ Something went wrong. Please try again later.");
-      }
+      // If it was a NEW recap, we might want to refresh the list to show the new card
+      // But for now, showing it in the modal is enough.
+    } catch (e) {
+      setRecapContent("Failed to load recap.");
+    } finally {
+      setRecapLoading(false);
     }
   };
 
   // --- FILTER LOGIC ---
-  const dailyNotes = cards.filter(
-    (card) =>
-      (card.type === "user_note" || card.type === "ai_insight") &&
-      (card.ai_metadata?.dashboard === mode ||
-        card.ai_metadata?.dashboard === "Both"),
-  );
+  const filteredCards = cards.filter((card) => {
+    const rawType = card.ai_metadata?.stream_type;
+    const type = normalizeType(rawType);
+    if (filter === "All") return true;
+    return type === filter;
+  });
 
   return (
-    <section
-      className={`flex flex-col h-full relative transition-all duration-300 ${
-        isSidebarOpen ? "block" : "hidden"
-      }`}
+    <div
+      className={`flex flex-col h-full rounded-2xl border ${panelColor} overflow-hidden relative`}
     >
-      {/* --- HEADER --- */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-4 pt-2">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-50">
-          <History size={14} />
-          <span>
-            {mode === "Professional" ? "Professional" : "Personal"} Timeline
-          </span>
+      {/* 1. HEADER */}
+      <div className="p-4 border-b border-white/5 bg-black/5 dark:bg-white/5 flex flex-col gap-3">
+        <div className="flex justify-between items-center">
+          <h2 className="font-bold opacity-80 flex items-center gap-2 text-sm">
+            <BrainCircuit size={16} /> DAILY STREAM
+          </h2>
+
+          <button
+            onClick={handleGenerateRecap}
+            className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 bg-purple-500/10 text-purple-400 px-2 py-1 rounded-md hover:bg-purple-500/20 transition-all"
+          >
+            <FileText size={12} /> Daily Recap
+          </button>
         </div>
 
-        {/* --- ANALYZE BUTTON --- */}
-        <button
-          onClick={generateInsight}
-          disabled={analyzing || !showInsights} // <--- 2. Disable if insights are off
-          title={
-            !showInsights
-              ? "Turn on AI Insights to use this feature"
-              : "Generate new insights"
-          }
-          className={`text-xs flex items-center gap-1 transition-all rounded px-2 py-1
-                ${
-                  !showInsights
-                    ? "text-gray-400 opacity-30 cursor-not-allowed grayscale" // Style when OFF
-                    : analyzing
-                      ? "text-purple-400/50 cursor-not-allowed bg-purple-500/5"
-                      : "text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 cursor-pointer"
-                }
-            `}
-        >
-          {analyzing ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Sparkles size={12} />
-          )}
-          {analyzing ? "Analyzing Patterns..." : "Analyze Patterns"}
-        </button>
+        {/* Filters */}
+        <div className="flex gap-2">
+          {["All", "Activity", "Rant", "Idea"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                filter === f
+                  ? "bg-white text-black shadow-sm"
+                  : "bg-white/5 hover:bg-white/10 opacity-60"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* --- LIST --- */}
-      <div
-        className={`flex-1 overflow-y-auto pr-2 pb-4 space-y-4 scrollbar-thin 
-        ${
-          mode === "Professional"
-            ? "[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-track]:bg-transparent"
-            : "[&::-webkit-scrollbar-thumb]:bg-stone-300 [&::-webkit-scrollbar-track]:bg-transparent"
-        }`}
-      >
-        <AnimatePresence mode="popLayout">
-          {dailyNotes.map((card) => (
-            <motion.div
-              key={card._id}
-              layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className={`p-4 rounded-xl border relative group transition-all 
-                ${
-                  card.type === "ai_insight"
-                    ? mode === "Professional"
-                      ? "bg-purple-900/20 border-purple-500/30"
-                      : "bg-purple-50 border-purple-200"
-                    : panelColor
-                }`}
-            >
-              {/* Card Header */}
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex gap-2 flex-wrap">
-                  {card.type === "ai_insight" && (
-                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-500 text-white flex items-center gap-1">
-                      <Lightbulb size={8} /> AI Insight
-                    </span>
-                  )}
-                  {card.ai_metadata?.tags?.map((tag) => (
-                    <span
-                      key={tag}
-                      className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                        mode === "Professional"
-                          ? "bg-blue-500/20 text-blue-200"
-                          : "bg-stone-200 text-stone-600"
-                      }`}
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  {card.ai_metadata?.is_venting && (
-                    <span title="Venting">💨</span>
-                  )}
-                  <button
-                    onClick={() => handleDeleteEntry(card._id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all text-gray-400"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Main Text */}
-              <div className="text-sm leading-relaxed mb-3 opacity-90">
-                <MarkdownView content={card.raw_text} className="text-sm" />
-              </div>
-
-              {/* Margin Note */}
-              {card.ai_metadata?.margin_note && (
-                <div
-                  className={`text-[11px] p-2 rounded-lg flex items-start gap-2 italic ${
-                    mode === "Professional"
-                      ? "bg-slate-800 text-blue-200"
-                      : "bg-orange-50 text-orange-800"
-                  }`}
-                >
-                  <div
-                    className={`w-1 h-1 mt-1.5 rounded-full ${
-                      mode === "Professional" ? "bg-blue-400" : "bg-orange-400"
-                    }`}
-                  />
-                  {card.ai_metadata.margin_note}
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {dailyNotes.length === 0 && (
-          <div className="text-center opacity-30 py-10 text-sm">
-            No entries found in {mode} timeline.
+      {/* 2. LIST */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {filteredCards.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center opacity-30 text-xs text-center">
+            <Sparkles size={32} className="mb-2" />
+            <p>Your stream is empty.</p>
           </div>
+        ) : (
+          <AnimatePresence>
+            {filteredCards.map((card) => (
+              <StreamCard
+                key={card._id}
+                card={card}
+                onDelete={handleDelete}
+                showInsights={showInsights}
+                onOpenRecap={(content) => {
+                  setRecapContent(content);
+                  setShowRecap(true);
+                }}
+              />
+            ))}
+          </AnimatePresence>
         )}
       </div>
 
-      {/* INPUT FORM */}
-      <div className="flex-shrink-0 pt-2 z-10 bg-transparent">
-        <form
-          onSubmit={handleSubmitNote}
-          className="relative shadow-xl rounded-2xl"
+      {/* 3. INPUT */}
+      <form
+        onSubmit={handleSend}
+        className="p-3 border-t border-white/5 bg-black/5 dark:bg-white/5 flex gap-2"
+      >
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Log an activity..."
+          className="flex-1 bg-transparent border-none outline-none text-sm placeholder-opacity-40"
+          disabled={loading}
+        />
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className={`p-2 rounded-lg transition-all ${
+            input.trim() ? accentColor + " text-white" : "opacity-30"
+          }`}
         >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Log to ${mode} feed...`}
-            className={`w-full p-4 pr-12 rounded-2xl outline-none border transition-all ${
-              mode === "Professional"
-                ? "bg-slate-900 border-slate-700 text-white placeholder-slate-500 focus:border-blue-500"
-                : "bg-white border-stone-200 text-stone-800 placeholder-stone-400 focus:border-orange-400"
-            }`}
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className={`absolute right-2 top-2 bottom-2 aspect-square rounded-xl flex items-center justify-center transition-all ${accentColor} text-white`}
-          >
-            {loading ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              <Send size={20} />
-            )}
-          </button>
-        </form>
+          {loading ? (
+            <Sparkles size={16} className="animate-spin" />
+          ) : (
+            <Send size={16} />
+          )}
+        </button>
+      </form>
+
+      {/* 4. RECAP MODAL */}
+      <AnimatePresence>
+        {showRecap && (
+          <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-900 border border-white/10 w-full max-w-md max-h-full flex flex-col rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                <h3 className="font-bold flex items-center gap-2 text-white">
+                  <Sparkles size={16} className="text-purple-400" /> Daily
+                  Analysis
+                </h3>
+                <button
+                  onClick={() => setShowRecap(false)}
+                  className="hover:bg-white/10 p-1 rounded-full transition-colors text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar text-sm text-slate-300 leading-relaxed">
+                {recapLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3 opacity-50">
+                    <Sparkles size={32} className="animate-pulse" />
+                    <p>Analyzing your day...</p>
+                  </div>
+                ) : (
+                  <MarkdownView content={recapContent} />
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- STREAM CARD ---
+function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
+  const meta = card.ai_metadata || {};
+  const type = normalizeType(meta.stream_type);
+
+  // 1. ADDED: Special Style for "Daily Recap"
+  const styleMap = {
+    Activity: {
+      border: "border-l-4 border-l-emerald-500",
+      icon: <CheckCircle2 size={14} className="text-emerald-500" />,
+      bg: "bg-emerald-500/5",
+    },
+    Rant: {
+      border: "border-l-4 border-l-red-500",
+      icon: <Flame size={14} className="text-red-500" />,
+      bg: "bg-red-500/5",
+    },
+    Idea: {
+      border: "border-l-4 border-l-yellow-500",
+      icon: <Lightbulb size={14} className="text-yellow-500" />,
+      bg: "bg-yellow-500/5",
+    },
+    "Daily Recap": {
+      border: "border-l-4 border-l-purple-500",
+      icon: <FileText size={14} className="text-purple-500" />,
+      bg: "bg-purple-500/5",
+    },
+  };
+
+  const activeStyle = styleMap[type] || styleMap.Activity;
+
+  // If this is a Recap Card, clicking it should open the modal
+  const isRecap = type === "Daily Recap";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      onClick={() => isRecap && onOpenRecap(meta.summary)}
+      className={`relative p-3 rounded-lg border border-white/5 ${activeStyle.bg} ${activeStyle.border} group transition-all hover:border-white/10 ${isRecap ? "cursor-pointer hover:bg-purple-500/10" : ""}`}
+    >
+      <div className="flex justify-between items-center mb-1 opacity-60 text-[10px] uppercase font-bold tracking-wider">
+        <div className="flex items-center gap-1.5">
+          {activeStyle.icon}
+          <span>{type}</span>
+          {meta.impact_score > 0 && (
+            <span className="bg-white/10 px-1.5 rounded text-[9px]">
+              {isRecap ? "Score" : "Impact"}: {meta.impact_score}/10
+            </span>
+          )}
+        </div>
+        <span>
+          {new Date(card.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
       </div>
-    </section>
+
+      <div
+        className={`text-sm opacity-90 mb-2 whitespace-pre-wrap ${isRecap ? "line-clamp-3 italic" : ""}`}
+      >
+        {isRecap
+          ? "Click to view full Daily Recap..."
+          : meta.summary || card.raw_text}
+      </div>
+
+      {showInsights && meta.ai_comment && (
+        <div className="mt-2 pt-2 border-t border-white/5 flex items-start gap-2 text-xs opacity-70 italic">
+          <Sparkles size={12} className="mt-0.5 opacity-50 shrink-0" />
+          <span>"{meta.ai_comment}"</span>
+        </div>
+      )}
+
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(card._id);
+          }}
+          className="p-1.5 bg-white/10 hover:bg-red-500 hover:text-white rounded-md text-gray-400 transition-all"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </motion.div>
   );
 }

@@ -17,6 +17,9 @@ from fastapi.responses import Response, RedirectResponse
 import json
 from app.calendar_service import create_flow, sync_calendar_events
 from app.ai_engine import generate_weekly_insight
+from app.models import BaseModel
+from app.ai_engine import llm 
+from langchain_core.prompts import ChatPromptTemplate
 
 
 app = FastAPI(title="Shadow AI API")
@@ -42,6 +45,9 @@ users_collection = db.users
 
 # Auth Scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+class ModeUpdate(BaseModel):
+    shadow_type: str
 
 
 @app.on_event("startup")
@@ -235,28 +241,54 @@ async def get_entries(user_id: str = "user_1"):
     return notes    
 
 # --- THE CORE ENDPOINT ---
+# ... (imports remain the same)
+
 @app.post("/entries", response_model=NoteDB)
 async def create_entry(note: NoteCreate):
+    # 1. Analyze the text (AI decides: Activity vs. Rant vs. Idea)
     ai_response = await analyze_text(note.raw_text)
     
+    # 2. Create the Database Object
     new_note = NoteDB(
         user_id=note.user_id,
         raw_text=note.raw_text,
-        ai_metadata=ai_response, # We plug the Gemini result in here
+        ai_metadata=ai_response, 
         created_at=datetime.utcnow()
     )
     
-    # Save to MongoDB
+    # 3. Save to MongoDB (The "Log") - ALWAYS SAVE HERE
     note_dict = new_note.model_dump(by_alias=True, exclude=["id"])
     result = await notes_collection.insert_one(note_dict)
-    # We run this in the background so it doesn't slow down the UI
-    note_id = str(result.inserted_id)
-    date_str = new_note.created_at.strftime("%Y-%m-%d")
     
-    # We await it here for simplicity, but in production, use BackgroundTasks
-    await save_note_to_vector_db(note_id, note.raw_text, note.user_id, date_str)
+    # 4. CONDITIONAL VECTOR STORAGE (The "Vault")
+    # Strategy A: Only save high-value concepts.
+    
+    should_embed = False
+    
+    # Case 1: Ideas are ALWAYS saved (The core "Idea Vault")
+    if ai_response.stream_type == "IDEA":
+        should_embed = True
+        print(f"💎 VAULT: Saving Idea to Vector DB: '{note.raw_text[:30]}...'")
+        
+    # Case 2: Rants are saved ONLY if they are significant (Impact Score > 6)
+    # This captures "Major Blockers" but ignores "Traffic was bad"
+    elif ai_response.stream_type == "RANT" and ai_response.impact_score > 6:
+        should_embed = True
+        print(f"🔥 VAULT: Saving Major Rant (Score {ai_response.impact_score}) to Vector DB.")
+        
+    # Case 3: Activities are IGNORED (Noise reduction)
+    else:
+        print(f"📉 VAULT: Skipping '{ai_response.stream_type}' (Low Signal/Activity).")
+
+    # Execute the save if condition met
+    if should_embed:
+        note_id = str(result.inserted_id)
+        date_str = new_note.created_at.strftime("%Y-%m-%d")
+        # Background task for speed
+        await save_note_to_vector_db(note_id, note.raw_text, note.user_id, date_str)
     
     return await notes_collection.find_one({"_id": result.inserted_id})
+
 
 @app.delete("/entries/{entry_id}")
 async def delete_entry(entry_id: str):
@@ -356,27 +388,14 @@ async def create_quick_note(note: QuickNoteCreate):
         user_id=note.user_id
     )
     
-    # 3. Save to MongoDB (The Bookshelf)
+    # 3. Save to MongoDB (The Bookshelf) - ONLY
     note_dict = new_note.model_dump(by_alias=True, exclude=["id"])
     result = await quick_notes_collection.insert_one(note_dict)
     
-    # --- 4. NEW: SAVE TO PINECONE (The Index) ---
-    # This turns your Quick Note into a memory the AI can find later
-    try:
-        note_id = str(result.inserted_id)
-        # Use current time for the date string
-        date_str = new_note.updated_at.strftime("%Y-%m-%d")
-        
-        await save_note_to_vector_db(
-            note_id=note_id, 
-            text=note.content, # Quick Notes use 'content', entries use 'raw_text'
-            user_id=note.user_id, 
-            created_at=date_str
-        )
-        print(f"✅ Quick Note synced to Pinecone: {note.content[:20]}...")
-    except Exception as e:
-        print(f"⚠️ Failed to sync Quick Note to Pinecone: {e}")
-
+    # --- VECTOR SYNC REMOVED ---
+    # We no longer sync Quick Notes to Pinecone. 
+    # They are transient state, not long-term memory.
+    
     return await quick_notes_collection.find_one({"_id": result.inserted_id})
 
 @app.put("/quick-notes/{note_id}", response_model=QuickNoteDB)
@@ -488,3 +507,104 @@ async def google_callback(state: str, code: str):
 async def trigger_sync(body: dict):
     # Expects {"user_id": "..."}
     return await sync_calendar_events(body['user_id'])    
+
+@app.put("/users/{user_id}/mode")
+async def update_shadow_mode(user_id: str, update: ModeUpdate):
+    # Update the nested 'profile.shadow_type' field
+    result = await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"profile.shadow_type": update.shadow_type}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"status": "updated", "current_mode": update.shadow_type}
+
+
+# app/main.py
+
+@app.get("/insights/daily-recap")
+async def get_daily_recap(user_id: str):
+    # 1. Calculate Today's Range
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 2. CHECK: Has a recap already been generated today?
+    existing_recap = await notes_collection.find_one({
+        "user_id": user_id,
+        "ai_metadata.stream_type": "Daily Recap", # Special type
+        "created_at": {"$gte": today}
+    })
+    
+    if existing_recap:
+        # Return the existing one immediately (No new AI call)
+        return {"recap": existing_recap["ai_metadata"]["summary"]}
+
+    # 3. If NOT, fetch logs and generate
+    cursor = notes_collection.find({
+        "user_id": user_id,
+        "created_at": {"$gte": today},
+        "ai_metadata.stream_type": {"$ne": "Daily Recap"} # Don't include other recaps in the context
+    }).sort("created_at", 1)
+    
+    logs = await cursor.to_list(length=100)
+    
+    if not logs:
+        return {"recap": "No activity logged yet today. Go do something! 🚀"}
+
+    # Format logs for AI
+    log_text = ""
+    for log in logs:
+        meta = log.get("ai_metadata", {})
+        type_str = meta.get("stream_type", "Activity")
+        time_str = log["created_at"].strftime("%I:%M %p")
+        content = log["raw_text"]
+        log_text += f"- [{time_str}] ({type_str}): {content}\n"
+
+
+    system_prompt = """
+    You are Shadow. Analyze the user's daily activity log.
+    
+    Output Format (Markdown):
+    ## 📊 Daily Summary
+    (2-3 sentences summarizing the day)
+    
+    ### ⚡ Highlights
+    - (Bullet point of main achievement)
+    - (Bullet point of creative idea)
+    
+    ### 🧘 Mood & Focus
+    - **Mood Score:** X/10 (Brief explanation)
+    - **Productivity:** X/10 (Brief explanation)
+    
+    > "Inspirational or witty closing quote based on their day."
+    """
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", f"Here is the log:\n\n{log_text}")
+    ])
+    
+    chain = prompt | llm
+    response = await chain.ainvoke({})
+    recap_content = response.content
+    
+    # 4. SAVE THE RECAP TO DB (So it persists in Timeline)
+    # We save it as a Note so it appears in the feed, but with a special type.
+    new_recap_note = NoteDB(
+        user_id=user_id,
+        raw_text="Daily Recap Generated", # Placeholder text for the list view
+        ai_metadata=AIAnalysisResult(
+            stream_type="Daily Recap",
+            summary=recap_content, # Store the full markdown here
+            impact_score=10,
+            ai_comment="Here is your daily summary.",
+            tags=["Recap", "AI"]
+        ),
+        created_at=datetime.utcnow()
+    )
+    
+    note_dict = new_recap_note.model_dump(by_alias=True, exclude=["id"])
+    await notes_collection.insert_one(note_dict)
+    
+    return {"recap": recap_content}

@@ -27,46 +27,57 @@ parser = PydanticOutputParser(pydantic_object=AIAnalysisResult)
 
 # Define the prompt for standard notes
 system_prompt = """
-You are 'Shadow', an intelligent, empathetic personal assistant. 
-Your goal is to classify notes into 'Personal' or 'Professional' dashboards and provide a short margin note.
+You are the 'Shadow' Stream Processor. Your goal is to categorize user inputs into the "Daily Stream" database.
+
+You must classify the input into exactly ONE of these three categories:
+
+1. ACTIVITY (The "What")
+   - Definition: Completed tasks, factual logs, events, progress updates.
+   - Key Signals: Past tense verbs (went, did, fixed), timestamps, specific outcomes.
+   - Goal: Log it for productivity tracking.
+
+2. RANT (The "Feel")
+   - Definition: Venting, complaints, emotional outbursts, stress dumps.
+   - Key Signals: Negative sentiment, exclamation marks, first-person emotional words (hate, tired, annoyed, stuck).
+   - Goal: Validate the user, do NOT try to solve it immediately.
+
+3. IDEA (The "Spark")
+   - Definition: Random thoughts, "what if" scenarios, creative concepts, fleeting questions.
+   - Key Signals: "Maybe", "What if", "Idea for...", abstract concepts.
+   - Goal: Archive it for future inspiration.
 
 FORMATTING INSTRUCTIONS:
 {format_instructions}
 
 RULES:
-- If the user is stressed, validate them.
-- If it's a work task (coding, emails), mark as 'Professional'.
-- If it's life (mood, sleep, family), mark as 'Personal'.
-- Keep 'margin_note' under 15 words.
+- For RANTS: Your 'ai_comment' must be validating but passive. Do not offer solutions. Mirror the intensity but stay calm.
+- For IDEAS: If the input is abstract or nonsensical, preserve it exactly and tag it as 'Latent'.
+- For ACTIVITIES: Be encouraging in 'ai_comment'.
 """
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
     ("human", "{user_text}"),
 ])
-
 # Create the chain for standard notes
 chain = prompt | llm | parser
 
 async def analyze_text(text: str) -> AIAnalysisResult:
     try:
-        # invoke() is sync, ainvoke() is async
         result = await chain.ainvoke({
             "user_text": text,
             "format_instructions": parser.get_format_instructions()
         })
         return result
     except Exception as e:
-        # Debug Print: This will show up in your terminal now if it fails
         print(f"❌ AI ANALYSIS ERROR: {e}")
+        # Fallback if AI fails
         return AIAnalysisResult(
-            dashboard="Personal",
-            summary="Error Processing",
-            sentiment_score=0.0,
+            stream_type="Activity",
+            summary="Log Entry",
+            impact_score=5,
             tags=["Error"],
-            margin_note="My brain is offline, but I saved your note.",
-            action_items=[],
-            is_venting=False
+            ai_comment="Saved, but I couldn't fully process this one."
         )
 
 # --- 3. THE WEEKLY INSIGHT DETECTIVE ---
