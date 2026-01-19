@@ -33,7 +33,7 @@ services:
 
   frontend:
     # ADD THIS LINE VVV
-    image: praful.gaur.2@gmail.com/shadow-frontend:latest
+    image: pgauin/shadow-frontend:latest
     build:
       context: .
       dockerfile: Dockerfile.frontend
