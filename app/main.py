@@ -1,3 +1,5 @@
+import re
+import dateparser
 from fastapi import Depends,FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import ping_db, notes_collection
@@ -14,6 +16,8 @@ from app.ai_graph import shadow_graph
 from fastapi.responses import Response, RedirectResponse
 import json
 from app.calendar_service import create_flow, sync_calendar_events
+from app.ai_engine import generate_weekly_insight
+
 
 app = FastAPI(title="Shadow AI API")
 
@@ -182,7 +186,37 @@ async def get_events(user_id: str): # <--- Receive user_id
 
 @app.post("/events", response_model=EventDB)
 async def create_event(event: EventCreate):
-    new_event = EventDB(**event.model_dump())
+    final_date = event.date
+    final_time = event.time
+    
+    # SMART PARSING LOGIC:
+    if not final_time and event.date:
+        # --- FIX: SANITIZE INPUT ---
+        # Convert "11.30" to "11:30" so dateparser understands it
+        clean_date_str = re.sub(r'(\d{1,2})\.(\d{2})', r'\1:\2', event.date)
+        
+        # Use the clean string for parsing
+        parsed_dt = dateparser.parse(clean_date_str, settings={'PREFER_DATES_FROM': 'future'})
+        
+        if parsed_dt:
+            # 1. Standardize Date
+            final_date = parsed_dt.strftime("%Y-%m-%d")
+            
+            # 2. Extract Time
+            input_lower = event.date.lower()
+            if any(x in input_lower for x in ["pm", "am", ":", ".", " at "]): # Added "." to check
+                final_time = parsed_dt.strftime("%I:%M %p")
+
+    # Create DB Object
+    new_event = EventDB(
+        title=event.title,
+        date=final_date,
+        time=final_time,
+        type=event.type,
+        user_id=event.user_id,
+        created_at=datetime.utcnow()
+    )
+    
     event_dict = new_event.model_dump(by_alias=True, exclude=["id"])
     result = await events_collection.insert_one(event_dict)
     return await events_collection.find_one({"_id": result.inserted_id})
@@ -224,51 +258,79 @@ async def create_entry(note: NoteCreate):
     
     return await notes_collection.find_one({"_id": result.inserted_id})
 
+@app.delete("/entries/{entry_id}")
+async def delete_entry(entry_id: str):
+    # Use ObjectId to convert string ID to Mongo ID
+    result = await notes_collection.delete_one({"_id": ObjectId(entry_id)})
+    if result.deleted_count == 1:
+        return {"status": "deleted"}
+    raise HTTPException(status_code=404, detail="Entry not found")
 
-    # --- ADD THIS TO app/main.py ---
-from app.ai_engine import generate_weekly_insight
+
+
+
 
 @app.post("/insights/generate")
-async def trigger_insight(user_id: str = "user_1"):
-    # 1. Fetch last 10 notes
+async def trigger_insight(user_id: str):
+    # 1. Fetch User to check Cooldown
+    user = await users_collection.find_one({"user_id": user_id})
+    
+    # Get today's date string (e.g., "2026-01-18")
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    
+    # CHECK: Has the user already generated an insight today?
+    if user and user.get("last_insight_date") == today_str:
+        raise HTTPException(
+            status_code=429, # HTTP Status for "Too Many Requests"
+            detail="Insight limit reached. You can generate a new analysis tomorrow."
+        )
+
+    # 2. Fetch last 10 notes (Existing Logic)
     cursor = notes_collection.find({"user_id": user_id}).sort("created_at", -1).limit(10)
     recent_notes = await cursor.to_list(length=10)
     
     if not recent_notes:
         return {"message": "Not enough data yet."}
 
-    # 2. Format them into a readable string for the AI
+    # 3. Prepare Text for AI (Existing Logic)
     history_text = "\n".join([
         f"- [{n['created_at'].strftime('%A')}] {n['ai_metadata']['dashboard']}: {n['raw_text']} (Sentiment: {n['ai_metadata']['sentiment_score']})"
         for n in recent_notes
     ])
 
-    # 3. Ask the Detective
+    # 4. Ask the Detective (Existing Logic)
     insight = await generate_weekly_insight(history_text)
     
     if not insight:
         raise HTTPException(status_code=500, detail="AI failed to generate insight")
 
-    # 4. Save this Insight as a special "Card" so it shows up in the feed
+    # 5. Save the Insight Card (Existing Logic)
     insight_card = NoteDB(
         user_id=user_id,
-        raw_text=insight.content, # The Insight becomes the text
-        type="ai_insight", # Special type
-        ai_metadata={
-            "dashboard": "Both", # Insights apply to whole life
-            "summary": "Weekly Pattern",
-            "sentiment_score": 0.0,
-            "tags": ["Insight", insight.insight_type],
-            "margin_note": "I noticed this pattern looking at your history. 🕵️",
-            "is_venting": False,
-            "action_items": []
-        },
+        raw_text=insight.content,
+        type="ai_insight",
+        ai_metadata=AIAnalysisResult(
+            dashboard="Both",
+            summary="Weekly Pattern",
+            sentiment_score=0.0,
+            tags=["Insight", insight.insight_type],
+            margin_note="I noticed this pattern looking at your history. 🕵️",
+            is_venting=False,
+            action_items=[]
+        ),
         created_at=datetime.utcnow()
     )
     
-    # Save to DB
     note_dict = insight_card.model_dump(by_alias=True, exclude=["id"])
     await notes_collection.insert_one(note_dict)
+    
+    # 6. CRITICAL: Update User's Last Insight Date
+    # This prevents them from generating again until tomorrow
+    await users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"last_insight_date": today_str}},
+        upsert=True # Create the field if it doesn't exist
+    )
     
     return {"status": "Insight generated", "insight": insight.content}
 
