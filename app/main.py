@@ -31,6 +31,8 @@ origins = [
     "http://localhost:80",   # Explicit Port 80
     "http://127.0.0.1",      # IP variation
     "http://34.135.8.240",
+    "http://shadowtodo.duckdns.org",
+    "https://shadowtodo.duckdns.org",
 ]
 
 app.add_middleware(
