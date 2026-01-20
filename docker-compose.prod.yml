@@ -36,7 +36,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        # KEEP HTTP FOR NOW (We change this in Phase 3)
+        # Back to HTTP
         - VITE_API_BASE_URL=http://shadowtodo.duckdns.org:8000
     container_name: shadow-frontend
     restart: always
@@ -44,10 +44,6 @@ services:
       - "80:80"
     depends_on:
       - backend
-    # --- ADD VOLUMES HERE ---
-    volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
     networks:
       - shadow-network
 
@@ -64,19 +60,8 @@ services:
     networks:
       - shadow-network
 
-  # --- NEW SERVICE ---
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
-
 volumes:
   mongo_data:
-  # --- NEW VOLUMES ---
-  certbot_conf:
-  certbot_www:
 
 networks:
   shadow-network:
