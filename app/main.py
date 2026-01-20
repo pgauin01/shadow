@@ -30,6 +30,7 @@ origins = [
     "http://localhost",      # Docker Frontend (Port 80) <-- THIS IS THE FIX
     "http://localhost:80",   # Explicit Port 80
     "http://127.0.0.1",      # IP variation
+    "http://34.135.8.240",
 ]
 
 app.add_middleware(
