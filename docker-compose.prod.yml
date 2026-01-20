@@ -10,10 +10,8 @@ services:
     restart: always
     ports:
       - "8000:8000"
-    # removed 'depends_on: mongo'
     env_file:
       - .env
-    # We don't need to specify MONGO_URL here, it's in the .env file
     networks:
       - shadow-network
 
@@ -23,7 +21,6 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        # Keep your domain here
         - VITE_API_BASE_URL=http://shadowtodo.duckdns.org:8000
     container_name: shadow-frontend
     restart: always
@@ -34,9 +31,9 @@ services:
     networks:
       - shadow-network
 
-# Removed 'mongo-express' service
-# Removed 'mongo' service
-# Removed 'volumes' section entirely
+# 🗑️ DELETED: mongo service
+# 🗑️ DELETED: mongo-express service
+# 🗑️ DELETED: volumes section
 
 networks:
   shadow-network:
