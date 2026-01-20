@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- FIX: Create the JSON file before building ---
+      # Create the JSON file locally so Docker can copy it during build
       - name: Create Google Credentials File
         run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > client_secret.json
 
@@ -71,10 +71,17 @@ jobs:
             cd /home/${{ secrets.HOST_USER }}/shadow-app
 
             # 2. Create .env file dynamically on server (Security Best Practice)
+            # Database Config
             echo "MONGO_URL=mongodb://mongo:27017" > .env
             echo "PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" >> .env
             echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
-            # We also recreate the JSON file on the server just in case the app needs to read it at runtime
+
+            # Auth Config (Fixed!)
+            echo "SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
+            echo "ALGORITHM=HS256" >> .env
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> .env
+
+            # Google JSON File
             echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > client_secret.json
 
             # 3. Pull the latest images from Docker Hub
