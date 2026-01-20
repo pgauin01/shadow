@@ -47,6 +47,21 @@ services:
     networks:
       - shadow-network
 
+mongo-express:
+  image: mongo-express
+  container_name: shadow-mongo-express
+  restart: always
+  ports:
+    - "8081:8081"
+  environment:
+    # Connects to the 'mongo' service defined above
+    ME_CONFIG_MONGODB_SERVER: mongo
+    # Login for the Web Interface (You type this in the browser)
+    ME_CONFIG_BASICAUTH_USERNAME: admin
+    ME_CONFIG_BASICAUTH_PASSWORD: pass
+  networks:
+    - shadow-network
+
 # --- THIS WAS MISSING BEFORE ---
 volumes:
   mongo_data:
