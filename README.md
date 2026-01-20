@@ -1,161 +1,146 @@
-# 🌑 Shadow AI - Your Context-Aware Digital Twin
+🌑 Shadow AI - Your Context-Aware Digital Twin
+Shadow is a next-generation Personal AI Assistant designed to be more than just a chatbot. It is a "Second Brain" that remembers your context, analyzes your daily logs, and proactively manages your schedule using Google Calendar integration.
 
-**Shadow** is a next-generation Personal AI Assistant designed to be more than just a chatbot. It is a "Second Brain" that remembers your context, sees what you see, and proactively manages your schedule using Google Calendar integration.
+Deployed and live at: http://shadowtodo.duckdns.org
 
-Built with **FastAPI**, **React**, **LangGraph**, and **Google Gemini 2.5**.
+⚡ Key Features
+🧠 Cognitive Engine
+Context-Aware Chat: Powered by LangGraph, Shadow maintains conversation history and user persona context to provide personalized responses.
 
----
+Stream Analysis: Automatically categorizes user inputs into Activities (Logs), Rants (Venting), or Ideas (Sparks) using Gemini 1.5 Flash.
 
-## ⚡ Key Features
+Persona Modes: Adaptable personality that switches between "Professional" (Concise) and "Gamer/Casual" (Witty) based on your profile settings.
 
-### 🧠 Cognitive Engine
+📅 Calendar & Productivity
+Natural Language Scheduling: Create events simply by typing: "Book a meeting with Dale for 8 PM tonight" (Uses LLM Tool Calling).
 
-- **Context-Aware Chat:** Maintains short-term conversation history to understand references (e.g., "Schedule _it_ for tomorrow").
-- **Multimodal Vision:** Capable of analyzing images, screenshots, and photos uploaded by the user.
-- **Persona Modes:** Toggles between "Professional" (Concise, helpful) and "Gamer" (Witty, casual) personalities.
+Google Calendar Sync: Full OAuth 2.0 integration to fetch and display real-time events.
 
-### 📅 Calendar & Productivity
+Quick Notes & Priority: A dedicated "Bookshelf" for fleeting thoughts, with AI-powered Auto-Priority detection (High/Medium/Low).
 
-- **Natural Language Scheduling:** Create events by typing: _"Book a meeting with Dale for 8 PM tonight"_ (Uses **LLM Tool Calling**).
-- **Google Calendar Sync:** Full OAuth 2.0 integration to fetch and display real-time Google Calendar events.
-- **Proactive Alerts:** The AI actively monitors your schedule and injects "Heads Up" alerts into the chat 30 minutes before an event starts.
+📊 Insights & Memory
+Daily Recap: Generates a midnight summary of your day's mood, productivity, and highlights.
 
-### 🛠️ Architecture
+Weekly Detective: Analyzes patterns in your logs to find correlations between your activities and mood.
 
-- **Agentic Workflow:** Powered by **LangGraph** to handle complex flows (Retrieve -> Reason -> Tool Call -> Answer).
-- **Data Persistence:** Uses **MongoDB Atlas** for user profiles and event storage.
+Vector Vault: High-value "Ideas" and major "Rants" are automatically embedded and stored in a Vector Database for long-term recall.
 
----
+🏗️ Tech Stack
+Frontend
+Framework: React 19 (Vite)
 
-## 🏗️ Tech Stack
+Styling: TailwindCSS + Framer Motion (Animations)
 
-**Frontend**
+HTTP Client: Axios
 
-- **Framework:** React (Vite)
-- **Styling:** TailwindCSS
-- **Icons:** Lucide React
-- **HTTP Client:** Axios
+Icons: Lucide React
 
-**Backend**
+Backend
+Framework: FastAPI (Python 3.11+)
 
-- **API Framework:** FastAPI (Python)
-- **AI Model:** Google Gemini 1.5 Flash
-- **Orchestration:** LangChain / LangGraph
-- **Database:** MongoDB / Motor (Async)
-- **Authentication:** Google OAuth 2.0
+AI Model: Google Gemini 1.5 Flash
 
----
+Orchestration: LangChain / LangGraph
 
-## 🚀 Installation & Setup
+Database: MongoDB Atlas (Async Motor)
 
-### 1. Prerequisites
+Authentication: OAuth2 (JWT) + Google OAuth 2.0
 
-- Node.js (v18+)
-- Python (v3.10+)
-- MongoDB Atlas Account
-- Google Cloud Console Project (for OAuth)
+Vector Store: Pinecone / Atlas Vector Search
 
-### 2. Backend Setup
+Infrastructure
+Deployment: Docker & Docker Compose
 
-```bash
+Hosting: Google Cloud Platform (Compute Engine)
+
+Domain: DuckDNS with Custom CORS Configuration
+
+🚀 Installation & Setup
+
+1. Prerequisites
+   Node.js (v18+)
+
+Python (v3.10+)
+
+MongoDB Atlas Account
+
+Google Cloud Console Project (for OAuth)
+
+2. Backend Setup
+   Bash
+
 # Clone the repository
-git clone [https://github.com/yourusername/shadow-ai.git](https://github.com/yourusername/shadow-ai.git)
-cd shadow-ai
+
+git clone https://github.com/pgauin01/shadow
 
 # Create virtual environment
+
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install fastapi uvicorn motor langchain-google-genai langgraph python-dotenv google-auth-oauthlib google-api-python-client pillow
 
-# Setup Google Credentials
-# 1. Download your OAuth 2.0 Client Secret JSON from Google Cloud Console
-# 2. Rename it to 'client_secret.json' and place it in the root folder
-
-
-Environment Variables (.env)
-Create a .env file in the root directory:
+pip install -r requirements.txt
+Environment Variables: Create a .env file in the root directory:
 
 Code snippet
+GOOGLE_API_KEY=your_gemini_key
+MONGO_URL=your_mongodb_connection_string
+SECRET_KEY=your_jwt_secret_key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+PINECONE_API_KEY=your_pinecone_key (Optional)
+Google Credentials:
 
+Download your OAuth 2.0 Client Secret JSON from Google Cloud Console.
 
-GOOGLE_API_KEY=your_gemini_api_key
-MONGO_URI=your_mongodb_connection_string
+Rename it to client_secret.json and place it in the root folder.
 
-
-3. Frontend Setup
-
-Bash
-
-
-cd src # (or wherever your vite app is located)
-npm install
-
-
-4. Running the App
-Start Backend (Terminal 1):
+Run the Backend:
 
 Bash
-
 
 # Runs on http://localhost:8000
-python -m uvicorn app.main:app --reload
 
-
-Start Frontend (Terminal 2):
-
+python -m uvicorn app.main:app --reload 3. Frontend Setup
 Bash
+cd shadow-client
+npm install
 
+# Run on http://localhost:5173
 
-# Runs on http://localhost:5173
 npm run dev
-
-
-📂 Project Structure
+🐳 Docker Deployment
+Shadow is ready for containerization.
 
 Bash
 
+# Build and Run Production Mode
 
-/shadow-ai
-├── /app                    # Backend Logic
-│   ├── main.py             # API Entry Points & OAuth Routes
-│   ├── ai_graph.py         # The Brain (LangGraph Nodes & Edges)
-│   ├── tools.py            # AI Tools (create_event_tool)
-│   ├── models.py           # Pydantic Data Models
-│   ├── database.py         # MongoDB Connection & Collections
-│   ├── calendar_service.py # Google Calendar Sync Logic
-│   └── vector_store.py     # (Future) RAG/Memory Logic
-├── /src                    # Frontend UI
-│   ├── App.jsx             # Main Application Logic
-│   ├── main.jsx            # Entry Point
-│   └── index.css           # Tailwind Imports
-├── client_secret.json      # Google OAuth Credentials (IGNORED IN GIT)
-├── requirements.txt        # Python Dependencies
-└── README.md               # Project Documentation
-
-
-🔌 API Endpoints
-Method
-Endpoint
-Description
-POST
-/chat
-Main chat interface. Handles text, images, and history.
-GET
-/auth/google
-Initiates Google OAuth flow.
-GET
-/auth/callback
-Google redirect callback to exchange tokens.
-POST
-/events/sync
-Manually triggers a calendar sync.
-
+docker compose -f docker-compose.prod.yml up -d --build
+📂 Project Structure
+Bash
+/shadow-app
+├── /app # Backend Logic
+│ ├── main.py # API Entry Points & CORS
+│ ├── ai_engine.py # Gemini 1.5 Prompts & Chains
+│ ├── ai_graph.py # LangGraph State Machine
+│ ├── auth.py # JWT Authentication
+│ ├── database.py # MongoDB Connection
+│ └── calendar_service.py # Google Calendar Sync
+├── /shadow-client # Frontend UI
+│ ├── src/components # React Components (Chat, Timeline, Auth)
+│ └── src/utils.js # Helper functions
+├── Dockerfile.backend # Python Container Config
+├── Dockerfile.frontend # Nginx/React Container Config
+└── docker-compose.prod.yml # Production Orchestration
 🔮 Roadmap
-[ ] Long-Term Memory (RAG): Integrate Pinecone to store notes and past conversations.
-[ ] Event Deletion: Add UI to delete events from MongoDB.
-[ ] Voice Mode: Implement Speech-to-Text and Text-to-Speech.
-[ ] Docker Support: Containerize the application for easy deployment.
-Developed by Praful | 2026
-```
+[x] JWT Authentication: Secure login and registration.
+
+[x] Daily Recap: AI generated summaries of daily logs.
+
+[x] Docker Support: Full containerization for GCP deployment.
+
+[ ] Voice Mode: Implement Speech-to-Text for hands-free logging.
+
+[ ] Mobile App: PWA or React Native port.
