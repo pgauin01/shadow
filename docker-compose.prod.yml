@@ -13,8 +13,7 @@ services:
       - shadow-network
 
   backend:
-    # ADD THIS LINE VVV
-    image: YOUR_DOCKER_USERNAME/shadow-backend:latest
+    image: pgauin/shadow-backend:latest
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -32,14 +31,13 @@ services:
       - shadow-network
 
   frontend:
-    # ADD THIS LINE VVV
     image: pgauin/shadow-frontend:latest
     build:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        # IMPORTANT: In production, this should be your DOMAIN or VPS IP
-        - VITE_API_BASE_URL=http://YOUR_VPS_IP_OR_DOMAIN:8000
+        # I put your actual IP here:
+        - VITE_API_BASE_URL=http://34.135.8.240:8000
     container_name: shadow-frontend
     restart: always
     ports:
@@ -49,4 +47,10 @@ services:
     networks:
       - shadow-network
 
-  # ... (mongo-express remains the same)
+# --- THIS WAS MISSING BEFORE ---
+volumes:
+  mongo_data:
+
+networks:
+  shadow-network:
+    driver: bridge
