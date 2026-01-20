@@ -143,4 +143,4 @@ Bash
 
 [ ] Voice Mode: Implement Speech-to-Text for hands-free logging.
 
-[ ] Mobile App: PWA or React Native port and electron for web based.
+[ ] Mobile App: PWA or React Native port and electron for web based...
