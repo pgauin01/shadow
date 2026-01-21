@@ -4,7 +4,7 @@ from fastapi import Depends,FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import ping_db, notes_collection
 from app.models import NoteCreate, NoteDB, AIAnalysisResult, EventCreate, EventDB, QuickNoteCreate, QuickNoteDB, ChatRequest, UserCreate, UserDB, QuickNoteUpdate
-from datetime import datetime
+from datetime import datetime,timezone
 from app.ai_engine import analyze_text,detect_priority, generate_weekly_insight, chat_with_history, chat_with_langchain
 from typing import List
 from app.database import client
@@ -226,7 +226,7 @@ async def create_event(event: EventCreate):
         time=final_time,
         type=event.type,
         user_id=event.user_id,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     event_dict = new_event.model_dump(by_alias=True, exclude=["id"])
@@ -259,7 +259,7 @@ async def create_entry(note: NoteCreate):
         user_id=note.user_id,
         raw_text=note.raw_text,
         ai_metadata=ai_response, 
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     # 3. Save to MongoDB (The "Log") - ALWAYS SAVE HERE
@@ -314,7 +314,7 @@ async def trigger_insight(user_id: str):
     user = await users_collection.find_one({"user_id": user_id})
     
     # Get today's date string (e.g., "2026-01-18")
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     # CHECK: Has the user already generated an insight today?
     if user and user.get("last_insight_date") == today_str:
@@ -356,7 +356,7 @@ async def trigger_insight(user_id: str):
             is_venting=False,
             action_items=[]
         ),
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     note_dict = insight_card.model_dump(by_alias=True, exclude=["id"])
@@ -413,7 +413,7 @@ async def update_quick_note(note_id: str, note: QuickNoteUpdate):
     if not existing:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    update_data = {"updated_at": datetime.utcnow()}
+    update_data = {"updated_at": datetime.now(timezone.utc)}
     
     # 2. Handle Content Update
     current_content = existing["content"]
@@ -533,7 +533,7 @@ async def update_shadow_mode(user_id: str, update: ModeUpdate):
 @app.get("/insights/daily-recap")
 async def get_daily_recap(user_id: str):
     # 1. Calculate Today's Range
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     # 2. CHECK: Has a recap already been generated today?
     existing_recap = await notes_collection.find_one({
@@ -607,7 +607,7 @@ async def get_daily_recap(user_id: str):
             ai_comment="Here is your daily summary.",
             tags=["Recap", "AI"]
         ),
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     note_dict = new_recap_note.model_dump(by_alias=True, exclude=["id"])

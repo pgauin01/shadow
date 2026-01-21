@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, BeforeValidator
 from typing import Any, Dict, List, Optional, Literal, Annotated, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Helper for MongoDB ObjectIds
 PyObjectId = Annotated[str, BeforeValidator(str)]
@@ -24,7 +24,7 @@ class UserDB(BaseModel):
     email: str
     hashed_password: str
     profile: UserProfile
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     google_token: Optional[str] = None 
 
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
@@ -51,7 +51,7 @@ class NoteDB(BaseModel):
     user_id: str
     raw_text: str
     type: str = "user_note" 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # This matches the structure above
     ai_metadata: AIAnalysisResult 
@@ -68,7 +68,7 @@ class EventCreate(BaseModel):
 
 class EventDB(EventCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
     google_id: Optional[str] = None
 
@@ -84,7 +84,7 @@ class QuickNoteUpdate(BaseModel):
 
 class QuickNoteDB(QuickNoteCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     final_priority: str = "Medium"
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
