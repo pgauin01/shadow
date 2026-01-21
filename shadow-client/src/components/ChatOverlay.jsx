@@ -8,7 +8,9 @@ import {
   Minimize2,
   Maximize2,
   Terminal,
-  Camera, // Ensure Camera is imported
+  Camera,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,14 +25,16 @@ export default function ChatOverlay({
   handleGoogleSync,
   setIsSidebarOpen,
   setShowEventForm,
+  onEventCreated,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null); // Restore Image State
+  const [selectedImage, setSelectedImage] = useState(null);
   const scrollRef = useRef(null);
-  const fileInputRef = useRef(null); // Restore File Input Ref
+  const fileInputRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
 
   // --- AUTO-SCROLL ---
   useEffect(() => {
@@ -118,6 +122,13 @@ export default function ChatOverlay({
         content: res.data.response,
       };
       setChatHistory((prev) => [...prev, botMessage]);
+      if (
+        res.data.response.includes("✅") ||
+        res.data.response.includes("scheduled")
+      ) {
+        console.log("📅 Event detected! Refreshing calendar...");
+        if (onEventCreated) onEventCreated();
+      }
     } catch (error) {
       console.error(error);
       setChatHistory((prev) => [
@@ -130,6 +141,55 @@ export default function ChatOverlay({
   };
 
   const showCommandHint = input.startsWith("/");
+
+  const handleVoiceInput = () => {
+    // 1. Browser Support Check
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice control requires Google Chrome or a supported browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true; // J.A.R.V.I.S. style typing
+    recognition.lang = "en-US";
+
+    // 2. Start Listening
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch (err) {
+      console.error("Mic already active", err);
+    }
+
+    // 3. Handle Results
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0])
+        .map((result) => result.transcript)
+        .join("");
+      setInput(transcript);
+    };
+
+    // 4. Handle End (Stop animation)
+    recognition.onend = () => setIsListening(false);
+
+    // 5. Handle Errors Gracefully
+    recognition.onerror = (event) => {
+      console.error("Voice Error:", event.error);
+      setIsListening(false);
+
+      if (event.error === "network") {
+        alert(
+          "Network Error: Voice recognition failed. \n\nTip: This feature works best in Google Chrome. Brave/Edge may block Google's speech servers.",
+        );
+      } else if (event.error === "not-allowed") {
+        alert("Microphone blocked. Please check your browser permissions.");
+      }
+    };
+  };
 
   return (
     <>
@@ -225,22 +285,97 @@ export default function ChatOverlay({
                   className="flex-1 overflow-y-auto p-4 space-y-4 bg-black/5 dark:bg-black/20"
                 >
                   {chatHistory.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center opacity-50 space-y-4">
-                      <div className="p-3 bg-white/5 rounded-full">
-                        <MessageSquare size={32} />
+                    <div className="flex flex-col items-center justify-center h-full text-center space-y-6 opacity-90">
+                      {/* 1. Icon & Greeting */}
+                      <div className="flex flex-col items-center gap-2">
+                        <div
+                          className={`p-4 rounded-2xl ${
+                            mode === "Professional"
+                              ? "bg-blue-600/20 text-blue-400"
+                              : "bg-orange-500/20 text-orange-400"
+                          }`}
+                        >
+                          <MessageSquare size={32} />
+                        </div>
+                        <h3 className="font-bold text-lg">
+                          Hi {user?.name?.split(" ")[0] || "there"}!
+                        </h3>
                       </div>
-                      <p className="text-sm">
-                        Hi {user?.name?.split(" ")[0] || "there"}! <br />
-                        I'm ready to help.
-                      </p>
-                      <div className="text-xs bg-white/5 p-3 rounded-lg text-left space-y-1 w-full max-w-[200px]">
-                        <p className="font-bold flex items-center gap-2 mb-2 border-b border-white/10 pb-1">
-                          <Terminal size={12} /> Commands:
+
+                      {/* 2. Updated Description */}
+                      <div className="text-sm max-w-[280px] leading-relaxed text-gray-500 dark:text-gray-400">
+                        <p>
+                          I am here to help you{" "}
+                          <strong>organize your life</strong>.
                         </p>
-                        <code className="block text-blue-400">/clear</code>
-                        <code className="block text-blue-400">/sync</code>
-                        <code className="block text-blue-400">/zen</code>
-                        <code className="block text-blue-400">/event</code>
+                        <p className="mt-2 text-xs opacity-70">
+                          I can{" "}
+                          <strong className="text-blue-400">
+                            Schedule Events
+                          </strong>{" "}
+                          and{" "}
+                          <strong className="text-purple-400">
+                            Recall Memories
+                          </strong>{" "}
+                          from your past logs.
+                        </p>
+                      </div>
+
+                      {/* 3. Clickable Starter Prompts */}
+                      <div className="w-full max-w-[280px] grid gap-2">
+                        {/* Button 1: Work Event */}
+                        <button
+                          onClick={() =>
+                            setInput(
+                              "Schedule a Work meeting regarding Project X for Tomorrow at 10 AM",
+                            )
+                          }
+                          className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-xs text-left transition-all group"
+                        >
+                          <span className="block font-bold mb-0.5 group-hover:text-blue-400 transition-colors">
+                            📅 Schedule Work Event
+                          </span>
+                          <span className="opacity-50 truncate block">
+                            "Meeting tomorrow at 10 AM..."
+                          </span>
+                        </button>
+
+                        {/* Button 2: Personal Event */}
+                        <button
+                          onClick={() =>
+                            setInput(
+                              "Add a Personal event: Gym session on Saturday at 5 PM",
+                            )
+                          }
+                          className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-xs text-left transition-all group"
+                        >
+                          <span className="block font-bold mb-0.5 group-hover:text-orange-400 transition-colors">
+                            🏃 Schedule Personal Event
+                          </span>
+                          <span className="opacity-50 truncate block">
+                            "Gym on Saturday at 5 PM..."
+                          </span>
+                        </button>
+
+                        {/* 👇 NEW Button 3: Recall Memory */}
+                        <button
+                          onClick={() => setInput("What were my recent ideas?")}
+                          className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-xs text-left transition-all group"
+                        >
+                          <span className="block font-bold mb-0.5 group-hover:text-purple-400 transition-colors">
+                            🧠 Recall Ideas
+                          </span>
+                          <span className="opacity-50 truncate block">
+                            "What were my recent ideas?"
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* 4. Command Hint */}
+                      <div className="text-[10px] opacity-40 font-mono flex gap-3">
+                        <span>/clear</span> <span>/sync</span>
+                        <span>/zen</span>
+                        <span>/event</span>
                       </div>
                     </div>
                   ) : (
@@ -347,6 +482,18 @@ export default function ChatOverlay({
                     }`}
                   >
                     <Camera size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVoiceInput}
+                    className={`p-2 rounded-lg transition-all ${
+                      isListening
+                        ? "bg-red-500/20 text-red-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]" // Glowing effect
+                        : "text-gray-400 hover:text-gray-200 hover:bg-white/10"
+                    }`}
+                    title="Toggle Voice Mode"
+                  >
+                    {isListening ? <MicOff size={20} /> : <Mic size={20} />}
                   </button>
 
                   <input

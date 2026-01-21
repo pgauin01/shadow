@@ -41,7 +41,11 @@ export default function UpcomingEvents({
         user_id: user.id,
       });
 
-      setEvents([res.data, ...events]);
+      const updatedList = [res.data, ...events].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+
+      setEvents(updatedList);
       setNewEvent({ title: "", date: "", type: "Work" });
       setShowEventForm(false);
     } catch (e) {

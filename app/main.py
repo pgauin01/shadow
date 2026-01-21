@@ -17,7 +17,7 @@ from fastapi.responses import Response, RedirectResponse
 import json
 from app.calendar_service import create_flow, sync_calendar_events
 from app.ai_engine import generate_weekly_insight
-from app.models import BaseModel
+from app.models import BaseModel, WorkspaceUpdate
 from app.ai_engine import llm 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -191,9 +191,18 @@ async def chat_endpoint(request: ChatRequest):
         return {"response": "My brain encountered a graph error."}
 
 @app.get("/events", response_model=List[EventDB])
-async def get_events(user_id: str): # <--- Receive user_id
-    # Filter by user_id
-    cursor = events_collection.find({"user_id": user_id}).sort("created_at", -1).limit(20)
+async def get_events(user_id: str):
+    # 1. Get Today's Date (YYYY-MM-DD)
+    # We use UTC to be safe, or you can adjust for your specific offset
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    # 2. Query MongoDB
+    cursor = events_collection.find({
+        "user_id": user_id,
+        # 👇 KEY FIX: Filter where 'date' is Greater Than or Equal to Today
+        "date": {"$gte": today} 
+    }).sort("date", 1).limit(20) # 👇 Sort Ascending (Soonest date first)
+    
     return await cursor.to_list(length=20)
 
 @app.post("/events", response_model=EventDB)
@@ -246,14 +255,18 @@ async def get_entries(user_id: str = "user_1"):
     notes = await cursor.to_list(length=50)
     return notes    
 
-# --- THE CORE ENDPOINT ---
-# ... (imports remain the same)
 
 @app.post("/entries", response_model=NoteDB)
 async def create_entry(note: NoteCreate):
     # 1. Analyze the text (AI decides: Activity vs. Rant vs. Idea)
     ai_response = await analyze_text(note.raw_text)
     
+    # 👇 NEW LOGIC: Override AI if user manually selected a type
+    if note.manual_stream_type and note.manual_stream_type != "Auto":
+        print(f"🔧 MANUAL OVERRIDE: Changing {ai_response.stream_type} -> {note.manual_stream_type.upper()}")
+        # Force the type (Convert to UPPERCASE to match backend logic like "IDEA")
+        ai_response.stream_type = note.manual_stream_type.upper()
+
     # 2. Create the Database Object
     new_note = NoteDB(
         user_id=note.user_id,
@@ -267,34 +280,80 @@ async def create_entry(note: NoteCreate):
     result = await notes_collection.insert_one(note_dict)
     
     # 4. CONDITIONAL VECTOR STORAGE (The "Vault")
-    # Strategy A: Only save high-value concepts.
-    
     should_embed = False
     
-    # Case 1: Ideas are ALWAYS saved (The core "Idea Vault")
+    # (The rest of your logic remains exactly the same, but now it uses the MANUAL type!)
+    
+    # Case 1: Ideas are ALWAYS saved
     if ai_response.stream_type == "IDEA":
         should_embed = True
         print(f"💎 VAULT: Saving Idea to Vector DB: '{note.raw_text[:30]}...'")
         
-    # Case 2: Rants are saved ONLY if they are significant (Impact Score > 6)
-    # This captures "Major Blockers" but ignores "Traffic was bad"
+    # Case 2: Rants are saved ONLY if they are significant
     elif ai_response.stream_type == "RANT" and ai_response.impact_score > 6:
         should_embed = True
         print(f"🔥 VAULT: Saving Major Rant (Score {ai_response.impact_score}) to Vector DB.")
         
-    # Case 3: Activities are IGNORED (Noise reduction)
     else:
         print(f"📉 VAULT: Skipping '{ai_response.stream_type}' (Low Signal/Activity).")
 
-    # Execute the save if condition met
     if should_embed:
         note_id = str(result.inserted_id)
         date_str = new_note.created_at.strftime("%Y-%m-%d")
-        # Background task for speed
         await save_note_to_vector_db(note_id, note.raw_text, note.user_id, date_str)
     
     return await notes_collection.find_one({"_id": result.inserted_id})
 
+@app.delete("/quick-notes/workspace")
+async def delete_workspace_notes(user_id: str, workspace: str):
+    print(f"Attempting to delete notes for user: {user_id} in workspace: {workspace}") # Debug Log
+    
+    if workspace == "Main":
+        raise HTTPException(status_code=400, detail="Cannot delete Main workspace")
+    
+    try:
+        # Check if collection exists in scope
+        if quick_notes_collection is None:
+             print("CRITICAL: quick_notes_collection is None!")
+             raise Exception("Database connection missing")
+
+        result = await quick_notes_collection.delete_many({
+            "user_id": user_id,
+            "workspace": workspace
+        })
+        
+        print(f"Deleted {result.deleted_count} notes.") # Debug Log
+        return {"status": "deleted", "count": result.deleted_count}
+
+    except Exception as e:
+        print(f"❌ ERROR in delete_workspace_notes: {str(e)}") # This will show in your terminal
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 👇 NEW ENDPOINT
+@app.put("/entries/{entry_id}", response_model=NoteDB)
+async def update_entry(entry_id: str, update: QuickNoteUpdate):
+    from bson import ObjectId
+    
+    # 1. Prepare the update data
+    update_data = {}
+    if update.stream_type:
+        # Update the nested field in MongoDB
+        update_data["ai_metadata.stream_type"] = update.stream_type
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # 2. Perform the Update
+    result = await notes_collection.update_one(
+        {"_id": ObjectId(entry_id)},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    # 3. Return the fresh document
+    return await notes_collection.find_one({"_id": ObjectId(entry_id)})
 
 @app.delete("/entries/{entry_id}")
 async def delete_entry(entry_id: str):
@@ -391,7 +450,8 @@ async def create_quick_note(note: QuickNoteCreate):
         content=note.content,
         priority=note.priority,
         final_priority=final_p,
-        user_id=note.user_id
+        user_id=note.user_id,
+        workspace=note.workspace or "Main"
     )
     
     # 3. Save to MongoDB (The Bookshelf) - ONLY
@@ -434,6 +494,9 @@ async def update_quick_note(note_id: str, note: QuickNoteUpdate):
             update_data["final_priority"] = note.priority
 
     # 4. Save to DB
+    if note.workspace is not None:
+        update_data["workspace"] = note.workspace
+
     await quick_notes_collection.update_one(
         {"_id": ObjectId(note_id)},
         {"$set": update_data}
@@ -614,3 +677,25 @@ async def get_daily_recap(user_id: str):
     await notes_collection.insert_one(note_dict)
     
     return {"recap": recap_content}
+
+@app.get("/users/{user_id}", response_model=UserDB)
+async def get_user_profile(user_id: str):
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user    
+
+@app.put("/users/{user_id}/workspaces")
+async def update_workspaces(user_id: str, update: WorkspaceUpdate):
+    # Update the list in MongoDB
+    result = await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"profile.workspaces": update.workspaces}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"status": "updated", "workspaces": update.workspaces}
+
+

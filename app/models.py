@@ -13,6 +13,7 @@ class UserProfile(BaseModel):
     profession: str
     shadow_type: str = "Career Mode" # Added default
     current_focus: str 
+    workspaces: List[str] = ["Main", "Dev", "Personal"]
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -44,7 +45,8 @@ class AIAnalysisResult(BaseModel):
 
 class NoteCreate(BaseModel):
     raw_text: str
-    user_id: str 
+    user_id: str
+    manual_stream_type: Optional[str] = None 
 
 class NoteDB(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None) 
@@ -77,16 +79,20 @@ class QuickNoteCreate(BaseModel):
     content: str
     priority: Optional[str] = "Medium" # Relaxed type to prevent errors
     user_id: str
+    workspace: Optional[str] = "Main"
 
 class QuickNoteUpdate(BaseModel):
     content: Optional[str] = None
     priority: Optional[str] = None
+    stream_type: Optional[str] = None
+    workspace: Optional[str] = None
 
 class QuickNoteDB(QuickNoteCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     final_priority: str = "Medium"
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+    workspace: str = "Main"
 
 # --- 5. CHAT REQUEST MODEL ---
 class ChatRequest(BaseModel):
@@ -98,3 +104,7 @@ class ChatRequest(BaseModel):
 # --- 6. MODE UPDATE MODEL ---
 class ModeUpdate(BaseModel):
     shadow_type: str
+
+
+class WorkspaceUpdate(BaseModel):
+    workspaces: List[str]   

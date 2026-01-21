@@ -27,6 +27,8 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [showInsights, setShowInsights] = useState(true);
 
+  console.log("user", user);
+
   const theme =
     mode === "Professional"
       ? "bg-slate-950 text-slate-100"
@@ -72,15 +74,31 @@ function App() {
 
   const fetchData = async (userId) => {
     try {
-      const [res1, res2, res3] = await Promise.all([
+      const [res1, res2, res3, res4] = await Promise.all([
         axios.get(`${API_BASE}/entries`, { params: { user_id: userId } }),
         axios.get(`${API_BASE}/events`, { params: { user_id: userId } }),
         axios.get(`${API_BASE}/quick-notes`, { params: { user_id: userId } }),
+        axios.get(`${API_BASE}/users/${userId}`),
       ]);
+
       setCards(res1.data);
       setEvents(res2.data);
       setQuickNotes(res3.data);
+
+      // 👇 THE FIX: Normalize the data to match 'handleLogin' structure
+      const backendUser = res4.data;
+      setUser({
+        id: backendUser.id || backendUser._id, // Handle both 'id' and '_id'
+        ...backendUser.profile, // Flatten profile (so user.name works)
+        profile: backendUser.profile, // Keep original profile object just in case
+        workspaces: backendUser.profile.workspaces, // Ensure workspaces are accessible
+      });
+
+      if (backendUser.profile?.shadow_type) {
+        setShadowType(backendUser.profile.shadow_type);
+      }
     } catch (e) {
+      console.error(e);
       addToast("Failed to load data", "Error", "error");
     }
   };
@@ -144,6 +162,18 @@ function App() {
   }, [events, alertedEvents]);
 
   if (!token) return <Auth onLogin={handleLogin} />;
+
+  const refreshEvents = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await axios.get(`${API_BASE}/events`, {
+        params: { user_id: user.id },
+      });
+      setEvents(res.data);
+    } catch (e) {
+      console.error("Failed to refresh events", e);
+    }
+  };
 
   return (
     <div
@@ -248,6 +278,7 @@ function App() {
         handleGoogleSync={handleGoogleSync}
         setIsSidebarOpen={setIsSidebarOpen}
         setShowEventForm={setShowEventForm}
+        onEventCreated={refreshEvents}
       />
     </div>
   );

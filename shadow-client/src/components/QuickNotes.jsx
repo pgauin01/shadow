@@ -11,6 +11,7 @@ import {
   Maximize2,
   Minimize2,
   RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -26,29 +27,119 @@ export default function QuickNotes({
   sortByPriority,
   panelColor,
 }) {
+  // --- 1. DYNAMIC WORKSPACES STATE ---
+  // Default to ONLY "Main" as requested
+  const [workspaces, setWorkspaces] = useState(
+    user?.profile?.workspaces || user?.workspaces || ["Main"],
+  );
+  const [activeWorkspace, setActiveWorkspace] = useState("Main");
+  const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [tempNoteContent, setTempNoteContent] = useState("");
   const [tempNotePriority, setTempNotePriority] = useState("Medium");
   const [isExpanded, setIsExpanded] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    isOpen: false,
+    workspace: null,
+  });
+
+  console.log("workspaces", user, workspaces);
 
   const scrollContainerRef = useRef(null);
 
-  // --- FIXED: ROBUST SCROLL LOGIC ---
+  // --- WORKSPACE CRUD OPERATIONS ---
+  const saveWorkspacesToBackend = async (newList) => {
+    try {
+      setWorkspaces(newList);
+      await axios.put(`${API_BASE}/users/${user.id}/workspaces`, {
+        workspaces: newList,
+      });
+    } catch (e) {
+      console.error("Failed to save workspaces", e);
+    }
+  };
+
+  useEffect(() => {
+    // Check both locations (depending on how App.jsx saves the user)
+    const saved = user?.profile?.workspaces || user?.workspaces;
+
+    // Only update if we actually found saved workspaces
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      setWorkspaces(saved);
+
+      // Optional: If the active workspace isn't in the new list, reset to Main
+      if (!saved.includes(activeWorkspace)) {
+        setActiveWorkspace("Main");
+      }
+    }
+  }, [user]);
+
+  const handleAddWorkspace = async (e) => {
+    e.preventDefault();
+    if (!newWorkspaceName.trim()) return;
+
+    const trimmedName = newWorkspaceName.trim();
+    if (!workspaces.includes(trimmedName)) {
+      const newList = [...workspaces, trimmedName];
+      await saveWorkspacesToBackend(newList);
+      setActiveWorkspace(trimmedName);
+    }
+
+    setNewWorkspaceName("");
+    setIsAddingWorkspace(false);
+  };
+
+  const handleDeleteWorkspace = async (wsName) => {
+    if (wsName === "Main") return;
+    setDeleteConfirmation({ isOpen: true, workspace: wsName });
+  };
+
+  // 2. ACTUALLY DELETE (Run this when user clicks "Delete" in pop-up)
+  const executeDeleteWorkspace = async () => {
+    const wsName = deleteConfirmation.workspace;
+    if (!wsName) return;
+
+    try {
+      console.log("Deleting workspace:", wsName); // Debug
+
+      // Axios automatically handles the ?user_id=...&workspace=... syntax here
+      await axios.delete(`${API_BASE}/quick-notes/workspace`, {
+        params: {
+          user_id: user.id || user._id,
+          workspace: wsName,
+        },
+      });
+      // B. Remove from Workspace List
+      const newList = workspaces.filter((w) => w !== wsName);
+      await saveWorkspacesToBackend(newList);
+
+      // C. Update UI
+      setActiveWorkspace("Main");
+      setNotes((prev) => prev.filter((n) => n.workspace !== wsName));
+
+      // D. Close Pop-up
+      setDeleteConfirmation({ isOpen: false, workspace: null });
+    } catch (e) {
+      console.error("Failed to delete workspace", e);
+      alert("Error deleting workspace.");
+    }
+  };
+
+  // --- SCROLL LOGIC ---
   useEffect(() => {
     if (editingNoteId) {
       if (editingNoteId === "NEW") {
-        // For new notes, just scroll the container to 0 immediately
         scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       } else {
-        // For existing notes, WAIT for the expansion transition to finish
-        // Standard tailwind transition is ~150-300ms. We wait 350ms to be safe.
         setTimeout(() => {
           const element = document.getElementById(`note-card-${editingNoteId}`);
           if (element) {
             element.scrollIntoView({
               behavior: "smooth",
-              block: "start", // Forces the top of the card to align with the top of the container
+              block: "start",
               inline: "nearest",
             });
           }
@@ -114,13 +205,17 @@ export default function QuickNotes({
     if (p === "Medium") return 2;
     return 1;
   };
+
+  // FILTER BY WORKSPACE
   const sortedNotes = sortByPriority
-    ? [...notes].sort(
-        (a, b) =>
-          getPriorityWeight(b.final_priority) -
-          getPriorityWeight(a.final_priority),
-      )
-    : notes;
+    ? [...notes]
+        .filter((n) => (n.workspace || "Main") === activeWorkspace)
+        .sort(
+          (a, b) =>
+            getPriorityWeight(b.final_priority) -
+            getPriorityWeight(a.final_priority),
+        )
+    : notes.filter((n) => (n.workspace || "Main") === activeWorkspace);
 
   const handleSaveQuickNote = async (id) => {
     try {
@@ -133,6 +228,7 @@ export default function QuickNotes({
               content: tempNoteContent,
               priority: tempNotePriority,
               final_priority: optimisticPriority,
+              workspace: activeWorkspace,
             }
           : n,
       );
@@ -140,9 +236,11 @@ export default function QuickNotes({
       setEditingNoteId(null);
       setIsExpanded(false);
       localStorage.removeItem(`shadow_draft_${id}`);
+
       const res = await axios.put(`${API_BASE}/quick-notes/${id}`, {
         content: tempNoteContent,
         priority: tempNotePriority,
+        workspace: activeWorkspace,
       });
       setNotes((current) => current.map((n) => (n._id === id ? res.data : n)));
     } catch (e) {
@@ -152,11 +250,19 @@ export default function QuickNotes({
 
   const handleAddNote = async () => {
     if (!tempNoteContent.trim()) return;
+
+    // 👇 Safety check: Ensure we have a valid ID
+    const userId = user.id || user._id;
+    if (!userId) {
+      alert("User ID missing. Please refresh the page.");
+      return;
+    }
     try {
       const res = await axios.post(`${API_BASE}/quick-notes`, {
         content: tempNoteContent,
         priority: tempNotePriority,
         user_id: user.id,
+        workspace: activeWorkspace,
       });
       setNotes([res.data, ...notes]);
       setEditingNoteId(null);
@@ -231,7 +337,6 @@ export default function QuickNotes({
     }, 0);
   };
 
-  // --- TOOLBAR ---
   const FormatToolbar = () => (
     <div
       className={`flex items-center gap-1 p-2 border-b ${
@@ -294,6 +399,7 @@ export default function QuickNotes({
       <div
         className={`rounded-2xl border ${panelColor} overflow-hidden h-full flex flex-col`}
       >
+        {/* HEADER */}
         <div className="p-4 border-b border-white/5 flex justify-between items-center bg-black/5 dark:bg-white/5 flex-shrink-0">
           <span className="text-xs font-bold uppercase tracking-wider opacity-50">
             Active Notes & Drafts
@@ -309,6 +415,71 @@ export default function QuickNotes({
           </button>
         </div>
 
+        {/* DYNAMIC WORKSPACE TABS */}
+        <div className="flex px-4 pt-2 gap-2 border-b border-white/5 bg-black/5 overflow-x-auto no-scrollbar items-center">
+          {workspaces.map((ws) => (
+            <div key={ws} className="relative group flex items-center">
+              <button
+                onClick={() => setActiveWorkspace(ws)}
+                className={`pb-2 px-3 text-xs font-bold uppercase tracking-wider transition-colors relative whitespace-nowrap ${
+                  activeWorkspace === ws
+                    ? "text-blue-400"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {ws}
+                {activeWorkspace === ws && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"
+                  />
+                )}
+              </button>
+
+              {/* Delete Button (Only shows on hover for non-Main tabs) */}
+              {ws !== "Main" && activeWorkspace === ws && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteWorkspace(ws); // 👈 UPDATED
+                  }}
+                  className="opacity-0 group-hover:opacity-100 absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:scale-110 transition-all z-10"
+                  title="Delete Workspace"
+                >
+                  <X size={8} />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {/* ADD NEW WORKSPACE BUTTON */}
+          {/* UPDATED: Added 'mb-2' to form and button to align with tabs baseline */}
+          {isAddingWorkspace ? (
+            <form
+              onSubmit={handleAddWorkspace}
+              className="flex items-center pb-1 mb-2"
+            >
+              <input
+                autoFocus
+                value={newWorkspaceName}
+                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                placeholder="Name..."
+                className="w-20 bg-transparent border-b border-blue-500 text-xs text-white outline-none pb-1 ml-2"
+                onBlur={() => setIsAddingWorkspace(false)}
+              />
+            </form>
+          ) : (
+            <button
+              onClick={() => setIsAddingWorkspace(true)}
+              className="ml-1 p-1 mb-2 hover:bg-white/10 rounded-md text-gray-500 hover:text-blue-400 transition-colors"
+              title="Add Workspace"
+            >
+              <Plus size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* NOTES GRID */}
         <div
           ref={scrollContainerRef}
           className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto custom-scrollbar content-start"
@@ -328,7 +499,7 @@ export default function QuickNotes({
                 <textarea
                   id="quick-note-active-input"
                   autoFocus
-                  placeholder="Type your note here..."
+                  placeholder={`Type your note for '${activeWorkspace}' here...`}
                   value={tempNoteContent}
                   onChange={(e) => setTempNoteContent(e.target.value)}
                   className="w-full flex-1 bg-transparent outline-none resize-none text-sm p-4 placeholder-opacity-50 font-mono leading-relaxed"
@@ -375,7 +546,7 @@ export default function QuickNotes({
           {sortedNotes.map((note) => (
             <div
               key={note._id}
-              id={`note-card-${note._id}`} // ID for scroll target
+              id={`note-card-${note._id}`}
               onClick={() => {
                 if (editingNoteId !== "NEW") {
                   setEditingNoteId(note._id);
@@ -483,7 +654,9 @@ export default function QuickNotes({
           {sortedNotes.length === 0 && editingNoteId !== "NEW" && (
             <div className="col-span-full flex flex-col items-center justify-center h-64 opacity-20 text-center">
               <List size={48} className="mb-4" />
-              <p>No active notes.</p>
+              <p>
+                No notes in <strong>{activeWorkspace}</strong>.
+              </p>
               <p className="text-xs mt-2">Click + to start writing.</p>
             </div>
           )}
@@ -512,6 +685,9 @@ export default function QuickNotes({
                     <Check size={20} className="text-green-400" />
                   )}
                   {editingNoteId === "NEW" ? "New Note" : "Editing Note"}
+                  <span className="text-xs font-normal opacity-50 ml-2 py-1 px-2 rounded-full bg-white/5">
+                    {activeWorkspace}
+                  </span>
                 </h3>
                 <button
                   onClick={() => setIsExpanded(false)}
@@ -618,6 +794,54 @@ export default function QuickNotes({
                     className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
                   >
                     <Check size={18} /> Save Note
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* DELETE CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {deleteConfirmation.isOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-stone-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4 text-red-500">
+                  <AlertTriangle size={24} />
+                </div>
+
+                <h3 className="text-xl font-bold text-white mb-2">
+                  Delete "{deleteConfirmation.workspace}"?
+                </h3>
+
+                <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                  This action will{" "}
+                  <strong className="text-red-400">
+                    permanently delete all notes
+                  </strong>{" "}
+                  inside this workspace. This cannot be undone.
+                </p>
+
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() =>
+                      setDeleteConfirmation({ isOpen: false, workspace: null })
+                    }
+                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeDeleteWorkspace}
+                    className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95"
+                  >
+                    Yes, Delete
                   </button>
                 </div>
               </div>

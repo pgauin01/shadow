@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Send,
   Sparkles,
@@ -9,6 +9,7 @@ import {
   Trash2,
   FileText,
   X,
+  ChevronDown, // Added this icon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -18,7 +19,6 @@ import MarkdownView from "./MarkdownView";
 const normalizeType = (rawType) => {
   if (!rawType) return "Activity";
   if (rawType === "Daily Recap") return "Daily Recap";
-
   const lower = rawType.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 };
@@ -29,11 +29,28 @@ export default function Timeline({
   user,
   panelColor,
   accentColor,
-  showInsights, // <--- We use this prop for the logic below
+  showInsights,
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("All");
+
+  // --- NEW: Manual Type Selector State ---
+  const [manualType, setManualType] = useState("Auto"); // Default to Auto
+  const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const typeMenuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (typeMenuRef.current && !typeMenuRef.current.contains(event.target)) {
+        setShowTypeMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const [showRecap, setShowRecap] = useState(false);
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapContent, setRecapContent] = useState("");
@@ -44,12 +61,16 @@ export default function Timeline({
 
     setLoading(true);
     const tempId = Date.now().toString();
+
+    // Use Manual Type if selected, otherwise "Processing..."
+    const initialType = manualType !== "Auto" ? manualType : "Activity";
+
     const tempCard = {
       _id: tempId,
       raw_text: input,
       created_at: new Date().toISOString(),
       ai_metadata: {
-        stream_type: "Activity",
+        stream_type: initialType, // Show user selection immediately
         summary: "Processing...",
         impact_score: 0,
         ai_comment: "Shadow is analyzing...",
@@ -59,11 +80,14 @@ export default function Timeline({
 
     setCards([tempCard, ...cards]);
     setInput("");
+    setManualType("Auto"); // Reset to Auto after sending
 
     try {
       const res = await axios.post(`${API_BASE}/entries`, {
         user_id: user.id,
         raw_text: tempCard.raw_text,
+        // Send the manual type to backend
+        manual_stream_type: manualType !== "Auto" ? manualType : null,
       });
       setCards((prev) => prev.map((c) => (c._id === tempId ? res.data : c)));
     } catch (err) {
@@ -87,7 +111,6 @@ export default function Timeline({
     setShowRecap(true);
     setRecapLoading(true);
     setRecapContent("");
-
     try {
       const res = await axios.get(`${API_BASE}/insights/daily-recap`, {
         params: { user_id: user.id },
@@ -100,18 +123,53 @@ export default function Timeline({
     }
   };
 
-  // --- UPDATED FILTER LOGIC ---
   const filteredCards = cards.filter((card) => {
     const rawType = card.ai_metadata?.stream_type;
     const type = normalizeType(rawType);
-
-    // 1. If Insights are OFF, HIDE Daily Recaps
     if (!showInsights && type === "Daily Recap") return false;
-
-    // 2. Normal Category Filtering
     if (filter === "All") return true;
     return type === filter;
   });
+
+  // ... inside Timeline component
+  const handleUpdateType = async (id, newType) => {
+    // 1. Optimistic UI Update (Instant change)
+    setCards((prev) =>
+      prev.map((c) => {
+        if (c._id === id) {
+          return {
+            ...c,
+            ai_metadata: { ...c.ai_metadata, stream_type: newType },
+          };
+        }
+        return c;
+      }),
+    );
+
+    // 2. API Call in Background
+    try {
+      await axios.put(`${API_BASE}/entries/${id}`, {
+        stream_type: newType,
+      });
+    } catch (err) {
+      console.error("Failed to update type", err);
+      // Optional: Revert changes if it fails
+    }
+  };
+
+  // Helper to get icon for the selector
+  const getTypeIcon = (t) => {
+    switch (t) {
+      case "Activity":
+        return <CheckCircle2 size={14} className="text-emerald-500" />;
+      case "Rant":
+        return <Flame size={14} className="text-red-500" />;
+      case "Idea":
+        return <Lightbulb size={14} className="text-yellow-500" />;
+      default:
+        return <Sparkles size={14} className="text-purple-400" />; // Auto
+    }
+  };
 
   return (
     <div
@@ -123,28 +181,18 @@ export default function Timeline({
           <h2 className="font-bold opacity-80 flex items-center gap-2 text-sm">
             <BrainCircuit size={16} /> DAILY STREAM
           </h2>
-
-          {/* UPDATED BUTTON: Disabled style when Insights are off */}
           <button
             onClick={handleGenerateRecap}
             disabled={!showInsights}
-            className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-2 py-1 rounded-md transition-all 
-              ${
-                showInsights
-                  ? "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
-                  : "bg-white/5 text-gray-500 opacity-50 cursor-not-allowed"
-              }`}
-            title={
-              !showInsights
-                ? "Enable AI Insights to generate recap"
-                : "Generate Daily Recap"
-            }
+            className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-2 py-1 rounded-md transition-all ${
+              showInsights
+                ? "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+                : "bg-white/5 text-gray-500 opacity-50 cursor-not-allowed"
+            }`}
           >
             <FileText size={12} /> Daily Recap
           </button>
         </div>
-
-        {/* Filters */}
         <div className="flex gap-2">
           {["All", "Activity", "Rant", "Idea"].map((f) => (
             <button
@@ -176,6 +224,7 @@ export default function Timeline({
                 key={card._id}
                 card={card}
                 onDelete={handleDelete}
+                onUpdateType={handleUpdateType} // 👈 Pass the new function
                 showInsights={showInsights}
                 onOpenRecap={(content) => {
                   setRecapContent(content);
@@ -187,15 +236,63 @@ export default function Timeline({
         )}
       </div>
 
-      {/* 3. INPUT */}
+      {/* 3. INPUT AREA (UPDATED) */}
       <form
         onSubmit={handleSend}
-        className="p-3 border-t border-white/5 bg-black/5 dark:bg-white/5 flex gap-2"
+        className="p-3 border-t border-white/5 bg-black/5 dark:bg-white/5 flex gap-2 relative z-20"
       >
+        {/* TYPE SELECTOR BUTTON */}
+        <div className="relative" ref={typeMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowTypeMenu(!showTypeMenu)}
+            className="h-full px-2.5 rounded-lg bg-white/5 hover:bg-white/10 flex items-center gap-1.5 transition-colors border border-white/5"
+            title="Set Stream Type"
+          >
+            {getTypeIcon(manualType)}
+            <ChevronDown size={10} className="opacity-50" />
+          </button>
+
+          {/* DROPDOWN MENU */}
+          <AnimatePresence>
+            {showTypeMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-full left-0 mb-2 w-32 bg-slate-900 border border-white/10 rounded-lg shadow-xl overflow-hidden flex flex-col p-1"
+              >
+                {["Auto", "Activity", "Rant", "Idea"].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setManualType(t);
+                      setShowTypeMenu(false);
+                    }}
+                    className={`flex items-center gap-2 p-2 text-xs rounded-md hover:bg-white/10 transition-colors ${
+                      manualType === t
+                        ? "bg-white/5 text-white"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {getTypeIcon(t)}
+                    <span>{t}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Log an activity..."
+          placeholder={
+            manualType === "Auto"
+              ? "Log an activity..."
+              : `Log an ${manualType}...`
+          }
           className="flex-1 bg-transparent border-none outline-none text-sm placeholder-opacity-40"
           disabled={loading}
         />
@@ -214,7 +311,7 @@ export default function Timeline({
         </button>
       </form>
 
-      {/* 4. RECAP MODAL */}
+      {/* 4. RECAP MODAL (Same as before) */}
       <AnimatePresence>
         {showRecap && (
           <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -236,7 +333,6 @@ export default function Timeline({
                   <X size={18} />
                 </button>
               </div>
-
               <div className="p-6 overflow-y-auto custom-scrollbar text-sm text-slate-300 leading-relaxed">
                 {recapLoading ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-3 opacity-50">
@@ -255,10 +351,42 @@ export default function Timeline({
   );
 }
 
-// --- STREAM CARD ---
-function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
+function StreamCard({
+  card,
+  onDelete,
+  onUpdateType,
+  showInsights,
+  onOpenRecap,
+}) {
   const meta = card.ai_metadata || {};
   const type = normalizeType(meta.stream_type);
+
+  // 1. State & Ref
+  const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const menuRef = useRef(null); // Track the menu container
+
+  // 2. Click Outside Handler
+  useEffect(() => {
+    function handleClickOutside(event) {
+      // If menu is open AND click is outside the ref container...
+      if (
+        showTypeMenu &&
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setShowTypeMenu(false); // Close it
+      }
+    }
+
+    // Attach listener only when menu is open
+    if (showTypeMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showTypeMenu]);
 
   const styleMap = {
     Activity: {
@@ -291,41 +419,81 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      onClick={() => isRecap && onOpenRecap(meta.summary)}
       className={`relative p-3 rounded-lg border border-white/5 ${
         activeStyle.bg
-      } ${activeStyle.border} group transition-all hover:border-white/10 ${
-        isRecap ? "cursor-pointer hover:bg-purple-500/10" : ""
-      }`}
+      } ${activeStyle.border} group transition-all hover:border-white/10`}
     >
-      <div className="flex justify-between items-center mb-1 opacity-60 text-[10px] uppercase font-bold tracking-wider">
-        <div className="flex items-center gap-1.5">
-          {activeStyle.icon}
-          <span>{type}</span>
+      <div className="flex justify-between items-center mb-1 text-[10px] uppercase font-bold tracking-wider">
+        {/* 3. EDITABLE TYPE BADGE (With Ref) */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isRecap) setShowTypeMenu(!showTypeMenu);
+            }}
+            className={`flex items-center gap-1.5 hover:bg-white/10 p-1 -ml-1 rounded transition-colors ${!isRecap ? "cursor-pointer" : "cursor-default"}`}
+          >
+            {activeStyle.icon}
+            <span>{type}</span>
+            {!isRecap && <ChevronDown size={10} className="opacity-50" />}
+          </button>
+
+          {/* Type Selection Menu */}
+          <AnimatePresence>
+            {showTypeMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                // Strict Black Background (As requested previously)
+                className="absolute top-full left-0 mt-1 z-50 w-24 bg-black border border-white/20 rounded-lg shadow-2xl overflow-hidden flex flex-col"
+              >
+                {["Activity", "Rant", "Idea"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      onUpdateType(card._id, t);
+                      setShowTypeMenu(false);
+                    }}
+                    className="px-3 py-2 text-left text-[10px] hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Date & Impact Score */}
+        <div className="flex items-center gap-2">
           {meta.impact_score > 0 && (
             <span className="bg-white/10 px-1.5 rounded text-[9px]">
               {isRecap ? "Score" : "Impact"}: {meta.impact_score}/10
             </span>
           )}
+          <span className="opacity-70">
+            {new Date(card.created_at).toLocaleString([], {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
         </div>
-        <span className="opacity-70">
-          {new Date(card.created_at).toLocaleString([], {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
       </div>
 
+      {/* Content */}
       <div
+        onClick={() => isRecap && onOpenRecap(meta.summary)}
         className={`text-sm opacity-90 mb-2 whitespace-pre-wrap ${
-          isRecap ? "line-clamp-3 italic" : ""
+          isRecap ? "line-clamp-3 italic cursor-pointer" : ""
         }`}
       >
         {isRecap ? "Click to view full Daily Recap..." : card.raw_text}
       </div>
 
+      {/* AI Comment */}
       {showInsights && meta.ai_comment && (
         <div className="mt-2 pt-2 border-t border-white/5 flex items-start gap-2 text-xs opacity-70 italic">
           <Sparkles size={12} className="mt-0.5 opacity-50 shrink-0" />
@@ -333,6 +501,7 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
         </div>
       )}
 
+      {/* Delete Button */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => {
