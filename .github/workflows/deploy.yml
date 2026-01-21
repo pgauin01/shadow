@@ -56,7 +56,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # We only copy the docker-compose file.
           # The code is already inside the Docker images we pushed above.
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.prod.yml, nginx.conf"
           target: "/home/${{ secrets.HOST_USER }}/shadow-app"
 
       - name: Deploy on Server via SSH
