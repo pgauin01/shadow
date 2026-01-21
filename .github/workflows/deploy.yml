@@ -38,7 +38,7 @@ jobs:
           push: true
           # We bake the Server IP into the React build here
           build-args: |
-            VITE_API_BASE_URL=http://${{ secrets.HOST_IP }}:8000
+            VITE_API_BASE_URL=https://${{ secrets.VITE_API_BASE }}
           tags: ${{ secrets.DOCKER_USERNAME }}/shadow-frontend:latest
 
   deploy:
