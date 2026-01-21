@@ -161,10 +161,14 @@ export default function ChatOverlay({
               y: 0,
               scale: 1,
               height: isMinimized ? "60px" : "500px",
-              width: isMinimized ? "200px" : "380px",
+              width: isMinimized
+                ? "200px"
+                : window.innerWidth < 768
+                  ? "90vw"
+                  : "380px",
             }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className={`fixed bottom-6 right-6 z-50 rounded-2xl shadow-2xl border overflow-hidden flex flex-col transition-all ${
+            className={`fixed bottom-6 right-4 lg:right-6 z-50 rounded-2xl shadow-2xl border overflow-hidden flex flex-col transition-all max-h-[80vh] ${
               mode === "Professional"
                 ? "bg-slate-900 border-slate-700"
                 : "bg-white border-stone-200"

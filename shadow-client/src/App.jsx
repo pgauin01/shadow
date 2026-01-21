@@ -12,29 +12,21 @@ import { parseEventDate } from "./utils";
 import { Sparkles } from "lucide-react";
 
 function App() {
-  // --- AUTH STATE ---
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem("shadow_token"));
-
-  // --- DATA STATE ---
-  const [mode, setMode] = useState("Professional"); // UI Theme (Work/Life)
-  const [shadowType, setShadowType] = useState("Career Mode"); // AI Persona
+  const [mode, setMode] = useState("Professional");
+  const [shadowType, setShadowType] = useState("Career Mode");
   const [cards, setCards] = useState([]);
   const [events, setEvents] = useState([]);
   const [quickNotes, setQuickNotes] = useState([]);
   const [sortByPriority, setSortByPriority] = useState(true);
-
-  // --- UI STATE ---
   const [chatHistory, setChatHistory] = useState([]);
   const [alertedEvents, setAlertedEvents] = useState(new Set());
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showEventForm, setShowEventForm] = useState(false);
   const [toasts, setToasts] = useState([]);
-
-  // --- TOGGLES ---
   const [showInsights, setShowInsights] = useState(true);
 
-  // Theme Helpers (Controlled by 'mode')
   const theme =
     mode === "Professional"
       ? "bg-slate-950 text-slate-100"
@@ -48,7 +40,6 @@ function App() {
       ? "bg-slate-900 border-slate-800"
       : "bg-white border-stone-200 shadow-sm";
 
-  // --- TOAST HELPERS ---
   const addToast = (message, title = "Notification", type = "info") => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, title, type }]);
@@ -57,12 +48,8 @@ function App() {
   const removeToast = (id) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
 
-  // --- HANDLER: Switch AI Persona ---
   const handlePersonaChange = async (newPersona) => {
-    // 1. Optimistic Update
     setShadowType(newPersona);
-
-    // 2. Sync with Backend
     if (user && user.id) {
       try {
         await axios.put(`${API_BASE}/users/${user.id}/mode`, {
@@ -71,12 +58,10 @@ function App() {
         addToast(`AI Persona switched to ${newPersona}`, "Updated", "success");
       } catch (e) {
         console.error("Failed to sync persona", e);
-        addToast("Failed to update persona", "Error", "error");
       }
     }
   };
 
-  // --- LOAD DATA ---
   useEffect(() => {
     const storedUserId = localStorage.getItem("shadow_user_id");
     if (token && storedUserId) {
@@ -96,7 +81,6 @@ function App() {
       setEvents(res2.data);
       setQuickNotes(res3.data);
     } catch (e) {
-      console.error(e);
       addToast("Failed to load data", "Error", "error");
     }
   };
@@ -106,12 +90,9 @@ function App() {
     localStorage.setItem("shadow_user_id", data.user_id);
     setToken(data.access_token);
     setUser({ id: data.user_id, ...data.profile });
-
-    // Initialize Shadow Type from DB
     if (data.profile.shadow_type) {
       setShadowType(data.profile.shadow_type);
     }
-
     addToast(`Welcome back, ${data.profile.name}!`, "Shadow Online", "success");
   };
 
@@ -134,7 +115,6 @@ function App() {
     }
   };
 
-  // --- EVENT WATCHER ---
   useEffect(() => {
     const checkUpcomingEvents = () => {
       const now = new Date();
@@ -145,12 +125,9 @@ function App() {
           event.time === "All Day"
         )
           return;
-
         const eventTime = parseEventDate(event.date, event.time);
         if (!eventTime) return;
-
         const diffMins = Math.floor((eventTime - now) / 60000);
-
         if (diffMins <= 60 && diffMins > -5) {
           addToast(
             `"${event.title}" starts in ${diffMins} minutes.`,
@@ -176,9 +153,9 @@ function App() {
 
       <Header
         mode={mode}
-        setMode={setMode} // Controls UI Theme
+        setMode={setMode}
         shadowType={shadowType}
-        setShadowType={handlePersonaChange} // Controls AI Persona
+        setShadowType={handlePersonaChange}
         sortByPriority={sortByPriority}
         setSortByPriority={setSortByPriority}
         logout={logout}
@@ -187,26 +164,35 @@ function App() {
         isSidebarOpen={isSidebarOpen}
       />
 
-      {/* VIEW CONTROLS */}
       <div
-        className={`px-6 py-2 border-b border-white/5 flex justify-end gap-4 text-xs font-bold uppercase tracking-wider ${mode === "Professional" ? "bg-slate-900/50" : "bg-stone-100"}`}
+        className={`px-4 lg:px-6 py-2 border-b border-white/5 flex justify-end gap-4 text-xs font-bold uppercase tracking-wider ${mode === "Professional" ? "bg-slate-900/50" : "bg-stone-100"}`}
       >
         <button
           onClick={() => setShowInsights(!showInsights)}
           className={`flex items-center gap-2 px-3 py-1 rounded-full transition-all ${showInsights ? "text-purple-400 bg-purple-500/10" : "opacity-40"}`}
         >
           <Sparkles size={14} />{" "}
-          {showInsights ? "AI Insights: ON" : "AI Insights: OFF"}
+          <span className="hidden sm:inline">
+            {showInsights ? "AI Insights: ON" : "AI Insights: OFF"}
+          </span>
+          <span className="sm:hidden">
+            {showInsights ? "AI: ON" : "AI: OFF"}
+          </span>
         </button>
       </div>
 
-      {/* MAIN GRID */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 h-full overflow-hidden">
-        {/* LEFT COLUMN */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 h-auto lg:h-full overflow-y-auto lg:overflow-hidden">
+        {/* LEFT COLUMN (Timeline + Events) */}
         <div
-          className={`h-[calc(100vh-140px)] flex flex-col gap-4 transition-all duration-300 ${!isSidebarOpen ? "hidden" : "lg:col-span-4 flex"}`}
+          className={`
+            flex flex-col gap-4 transition-all duration-300
+            order-2 lg:order-1
+            h-auto lg:h-[calc(100vh-140px)]
+            ${!isSidebarOpen ? "hidden" : "flex lg:col-span-4"}
+          `}
         >
-          <div className="flex-[3] min-h-0 overflow-hidden">
+          {/* Timeline */}
+          <div className="lg:flex-[3] min-h-[400px] lg:min-h-0 overflow-hidden">
             <Timeline
               cards={cards.filter((c) =>
                 showInsights ? true : c.type !== "ai_insight",
@@ -220,7 +206,8 @@ function App() {
               showInsights={showInsights}
             />
           </div>
-          <div className="flex-[1] min-h-0 flex flex-col">
+          {/* Events */}
+          <div className="lg:flex-[1] min-h-0 flex flex-col">
             <UpcomingEvents
               events={events}
               setEvents={setEvents}
@@ -233,9 +220,14 @@ function App() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* RIGHT COLUMN (Quick Notes) */}
         <div
-          className={`h-[calc(100vh-140px)] transition-all duration-300 ${!isSidebarOpen ? "lg:col-span-12" : "lg:col-span-8"}`}
+          className={`
+            transition-all duration-300 
+            order-1 lg:order-2
+            h-[500px] lg:h-[calc(100vh-140px)]
+            ${!isSidebarOpen ? "lg:col-span-12" : "lg:col-span-8"}
+          `}
         >
           <QuickNotes
             notes={quickNotes}
