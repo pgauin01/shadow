@@ -8,7 +8,12 @@ load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = "shadow_db"
 
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    MONGO_URL, 
+    uuidRepresentation="standard", 
+    tz_aware=True 
+)
+
 db = client[DB_NAME]
 
 # Collections
