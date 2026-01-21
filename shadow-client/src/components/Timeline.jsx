@@ -17,7 +17,6 @@ import MarkdownView from "./MarkdownView";
 
 const normalizeType = (rawType) => {
   if (!rawType) return "Activity";
-  // Handle "Daily Recap" specifically
   if (rawType === "Daily Recap") return "Daily Recap";
 
   const lower = rawType.toLowerCase();
@@ -30,13 +29,11 @@ export default function Timeline({
   user,
   panelColor,
   accentColor,
-  showInsights,
+  showInsights, // <--- We use this prop for the logic below
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("All");
-
-  // --- RECAP MODAL STATE ---
   const [showRecap, setShowRecap] = useState(false);
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapContent, setRecapContent] = useState("");
@@ -86,7 +83,6 @@ export default function Timeline({
     }
   };
 
-  // --- GENERATE / FETCH RECAP ---
   const handleGenerateRecap = async () => {
     setShowRecap(true);
     setRecapLoading(true);
@@ -97,9 +93,6 @@ export default function Timeline({
         params: { user_id: user.id },
       });
       setRecapContent(res.data.recap);
-
-      // If it was a NEW recap, we might want to refresh the list to show the new card
-      // But for now, showing it in the modal is enough.
     } catch (e) {
       setRecapContent("Failed to load recap.");
     } finally {
@@ -107,10 +100,15 @@ export default function Timeline({
     }
   };
 
-  // --- FILTER LOGIC ---
+  // --- UPDATED FILTER LOGIC ---
   const filteredCards = cards.filter((card) => {
     const rawType = card.ai_metadata?.stream_type;
     const type = normalizeType(rawType);
+
+    // 1. If Insights are OFF, HIDE Daily Recaps
+    if (!showInsights && type === "Daily Recap") return false;
+
+    // 2. Normal Category Filtering
     if (filter === "All") return true;
     return type === filter;
   });
@@ -126,9 +124,21 @@ export default function Timeline({
             <BrainCircuit size={16} /> DAILY STREAM
           </h2>
 
+          {/* UPDATED BUTTON: Disabled style when Insights are off */}
           <button
             onClick={handleGenerateRecap}
-            className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 bg-purple-500/10 text-purple-400 px-2 py-1 rounded-md hover:bg-purple-500/20 transition-all"
+            disabled={!showInsights}
+            className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-2 py-1 rounded-md transition-all 
+              ${
+                showInsights
+                  ? "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+                  : "bg-white/5 text-gray-500 opacity-50 cursor-not-allowed"
+              }`}
+            title={
+              !showInsights
+                ? "Enable AI Insights to generate recap"
+                : "Generate Daily Recap"
+            }
           >
             <FileText size={12} /> Daily Recap
           </button>
@@ -250,7 +260,6 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
   const meta = card.ai_metadata || {};
   const type = normalizeType(meta.stream_type);
 
-  // 1. ADDED: Special Style for "Daily Recap"
   const styleMap = {
     Activity: {
       border: "border-l-4 border-l-emerald-500",
@@ -275,8 +284,6 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
   };
 
   const activeStyle = styleMap[type] || styleMap.Activity;
-
-  // If this is a Recap Card, clicking it should open the modal
   const isRecap = type === "Daily Recap";
 
   return (
@@ -285,7 +292,11 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       onClick={() => isRecap && onOpenRecap(meta.summary)}
-      className={`relative p-3 rounded-lg border border-white/5 ${activeStyle.bg} ${activeStyle.border} group transition-all hover:border-white/10 ${isRecap ? "cursor-pointer hover:bg-purple-500/10" : ""}`}
+      className={`relative p-3 rounded-lg border border-white/5 ${
+        activeStyle.bg
+      } ${activeStyle.border} group transition-all hover:border-white/10 ${
+        isRecap ? "cursor-pointer hover:bg-purple-500/10" : ""
+      }`}
     >
       <div className="flex justify-between items-center mb-1 opacity-60 text-[10px] uppercase font-bold tracking-wider">
         <div className="flex items-center gap-1.5">
@@ -297,8 +308,10 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
             </span>
           )}
         </div>
-        <span>
-          {new Date(card.created_at).toLocaleTimeString([], {
+        <span className="opacity-70">
+          {new Date(card.created_at).toLocaleString([], {
+            month: "short",
+            day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
           })}
@@ -306,11 +319,11 @@ function StreamCard({ card, onDelete, showInsights, onOpenRecap }) {
       </div>
 
       <div
-        className={`text-sm opacity-90 mb-2 whitespace-pre-wrap ${isRecap ? "line-clamp-3 italic" : ""}`}
+        className={`text-sm opacity-90 mb-2 whitespace-pre-wrap ${
+          isRecap ? "line-clamp-3 italic" : ""
+        }`}
       >
-        {isRecap
-          ? "Click to view full Daily Recap..."
-          : meta.summary || card.raw_text}
+        {isRecap ? "Click to view full Daily Recap..." : card.raw_text}
       </div>
 
       {showInsights && meta.ai_comment && (
