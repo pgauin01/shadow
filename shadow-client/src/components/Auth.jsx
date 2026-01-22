@@ -61,7 +61,7 @@ export default function Auth({ onLogin }) {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-white text-center mb-2">
-          Welcome to Shadow
+          Welcome to Zenith
         </h1>
         <p className="text-slate-400 text-center mb-8 text-sm">
           Your context-aware AI workspace.

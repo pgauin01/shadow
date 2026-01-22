@@ -16,13 +16,13 @@ client = motor.motor_asyncio.AsyncIOMotorClient(
 
 db = client[DB_NAME]
 
-# Collections
-notes_collection = db["cards"]
-user_collection = db["users"]
-events_collection = db["events"]
-patterns_collection = db["patterns"]
+# 3. Define Collections (These were missing!)
+users_collection = db.users
+events_collection = db.events
+notes_collection = db.notes
+quick_notes_collection = db.quick_notes
 
-# Quick check function
+# 4. Ping Function (Keep existing)
 async def ping_db():
     try:
         await client.admin.command('ping')

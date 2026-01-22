@@ -41,7 +41,7 @@ export default function Header({
             >
               <LayoutDashboard size={18} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">Shadow</h1>
+            <h1 className="text-xl font-bold tracking-tight">Zenith</h1>
           </div>
         </div>
 

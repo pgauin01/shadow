@@ -5,7 +5,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from fastapi.responses import RedirectResponse
-from app.database import user_collection, events_collection
+from app.database import users_collection, events_collection
 from app.models import EventDB
 from bson import ObjectId
 from datetime import datetime
@@ -28,7 +28,7 @@ def create_flow():
 
 async def sync_calendar_events(user_id: str):
     # A. Get User's Token (Same as before)
-    user = await user_collection.find_one({"_id": ObjectId(user_id)})
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
     if not user or "google_token" not in user:
         return {"error": "User not connected to Google"}
 

@@ -80,6 +80,7 @@ class QuickNoteCreate(BaseModel):
     priority: Optional[str] = "Medium" # Relaxed type to prevent errors
     user_id: str
     workspace: Optional[str] = "Main"
+    is_encrypted: bool = False
 
 class QuickNoteUpdate(BaseModel):
     content: Optional[str] = None
@@ -93,6 +94,7 @@ class QuickNoteDB(QuickNoteCreate):
     final_priority: str = "Medium"
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
     workspace: str = "Main"
+    is_encrypted: bool = False
 
 # --- 5. CHAT REQUEST MODEL ---
 class ChatRequest(BaseModel):

@@ -18,6 +18,8 @@ import axios from "axios";
 import { API_BASE } from "../config";
 import { getPriorityColor } from "../utils";
 import MarkdownView from "./MarkdownView";
+import { deriveKey, encryptData, decryptData } from "../util/crypto";
+import { Lock, Unlock } from "lucide-react";
 
 export default function QuickNotes({
   notes,
@@ -45,8 +47,10 @@ export default function QuickNotes({
     isOpen: false,
     workspace: null,
   });
-
-  console.log("workspaces", user, workspaces);
+  const [isSecretMode, setIsSecretMode] = useState(false); // Toggle for new note
+  const [vaultKey, setVaultKey] = useState(null); // The generated crypto key
+  const [vaultPassword, setVaultPassword] = useState(""); // Input field
+  const [showVaultPrompt, setShowVaultPrompt] = useState(false);
 
   const scrollContainerRef = useRef(null);
 
@@ -95,6 +99,76 @@ export default function QuickNotes({
   const handleDeleteWorkspace = async (wsName) => {
     if (wsName === "Main") return;
     setDeleteConfirmation({ isOpen: true, workspace: wsName });
+  };
+
+  // 1. INITIALIZE VAULT
+  const unlockVault = async (e) => {
+    e.preventDefault();
+    if (!vaultPassword) return;
+    const key = await deriveKey(vaultPassword);
+    setVaultKey(key);
+    setShowVaultPrompt(false);
+
+    // Attempt to decrypt visible notes immediately
+    decryptAllNotes(key);
+  };
+
+  // Helper to batch decrypt notes
+  const decryptAllNotes = async (key) => {
+    const decryptedList = await Promise.all(
+      notes.map(async (n) => {
+        if (n.is_encrypted) {
+          const plain = await decryptData(n.content, key);
+          return { ...n, content: plain, decrypted: true };
+        }
+        return n;
+      }),
+    );
+    setNotes(decryptedList);
+  };
+
+  // 2. MODIFIED SAVE FUNCTION (Handles Encryption)
+  const handleAddNote = async () => {
+    if (!tempNoteContent.trim()) return;
+
+    let finalContent = tempNoteContent;
+    let isEncrypted = false;
+
+    // A. ENCRYPT IF SECRET MODE IS ON
+    if (isSecretMode) {
+      if (!vaultKey) {
+        setShowVaultPrompt(true);
+        return;
+      }
+      finalContent = await encryptData(tempNoteContent, vaultKey);
+      isEncrypted = true;
+    }
+
+    try {
+      const res = await axios.post(`${API_BASE}/quick-notes`, {
+        content: finalContent,
+        priority: tempNotePriority,
+        user_id: user.id || user._id,
+        workspace: activeWorkspace,
+        // 👇 Tell backend this is a secret
+        is_encrypted: isEncrypted,
+      });
+
+      // If we just saved it, we know the plaintext version, so display that locally
+      const displayNote = {
+        ...res.data,
+        content: tempNoteContent,
+        decrypted: true,
+      };
+      setNotes([displayNote, ...notes]);
+
+      // Cleanup
+      setEditingNoteId(null);
+      setTempNoteContent("");
+      setIsSecretMode(false); // Reset toggle
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // 2. ACTUALLY DELETE (Run this when user clicks "Delete" in pop-up)
@@ -248,31 +322,31 @@ export default function QuickNotes({
     }
   };
 
-  const handleAddNote = async () => {
-    if (!tempNoteContent.trim()) return;
+  // const handleAddNote = async () => {
+  //   if (!tempNoteContent.trim()) return;
 
-    // 👇 Safety check: Ensure we have a valid ID
-    const userId = user.id || user._id;
-    if (!userId) {
-      alert("User ID missing. Please refresh the page.");
-      return;
-    }
-    try {
-      const res = await axios.post(`${API_BASE}/quick-notes`, {
-        content: tempNoteContent,
-        priority: tempNotePriority,
-        user_id: user.id,
-        workspace: activeWorkspace,
-      });
-      setNotes([res.data, ...notes]);
-      setEditingNoteId(null);
-      setTempNoteContent("");
-      setIsExpanded(false);
-      localStorage.removeItem("shadow_draft_new");
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  //   // 👇 Safety check: Ensure we have a valid ID
+  //   const userId = user.id || user._id;
+  //   if (!userId) {
+  //     alert("User ID missing. Please refresh the page.");
+  //     return;
+  //   }
+  //   try {
+  //     const res = await axios.post(`${API_BASE}/quick-notes`, {
+  //       content: tempNoteContent,
+  //       priority: tempNotePriority,
+  //       user_id: user.id,
+  //       workspace: activeWorkspace,
+  //     });
+  //     setNotes([res.data, ...notes]);
+  //     setEditingNoteId(null);
+  //     setTempNoteContent("");
+  //     setIsExpanded(false);
+  //     localStorage.removeItem("shadow_draft_new");
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  // };
 
   const handleDelete = async (id) => {
     try {
@@ -390,6 +464,18 @@ export default function QuickNotes({
         title={isExpanded ? "Minimize" : "Expand"}
       >
         {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+      </button>
+      <button
+        onClick={() => setIsSecretMode(!isSecretMode)}
+        className={`p-2 rounded flex items-center gap-2 text-xs font-bold transition-all ${
+          isSecretMode
+            ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50"
+            : "hover:bg-white/10 opacity-50"
+        }`}
+        title="Toggle Zero-Knowledge Encryption"
+      >
+        {isSecretMode ? <Lock size={14} /> : <Unlock size={14} />}
+        {isSecretMode ? "Secret Mode" : "Public"}
       </button>
     </div>
   );
@@ -539,6 +625,45 @@ export default function QuickNotes({
                   </div>
                 </div>
               </motion.div>
+            )}
+          </AnimatePresence>
+          {/* VAULT UNLOCK MODAL */}
+          <AnimatePresence>
+            {showVaultPrompt && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                <motion.div
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  className="bg-stone-900 p-6 rounded-2xl border border-yellow-500/30 max-w-sm w-full text-center"
+                >
+                  <Lock size={40} className="mx-auto text-yellow-500 mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    Unlock Shadow Vault
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Enter your vault password to decrypt/encrypt secret notes.
+                    <br />
+                    This password is <strong>never sent to the server</strong>.
+                  </p>
+
+                  <form onSubmit={unlockVault}>
+                    <input
+                      type="password"
+                      autoFocus
+                      placeholder="Vault Password..."
+                      value={vaultPassword}
+                      onChange={(e) => setVaultPassword(e.target.value)}
+                      className="w-full p-3 rounded-lg bg-black/50 border border-white/10 text-white outline-none focus:border-yellow-500 mb-4"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg"
+                    >
+                      Unlock Vault
+                    </button>
+                  </form>
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>
 

@@ -27,8 +27,6 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [showInsights, setShowInsights] = useState(true);
 
-  console.log("user", user);
-
   const theme =
     mode === "Professional"
       ? "bg-slate-950 text-slate-100"
