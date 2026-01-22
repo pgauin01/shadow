@@ -145,7 +145,7 @@ export default function QuickNotes({
     }
 
     try {
-      const res = await axios.post(`${API_BASE}/quick-notes`, {
+      const res = await axios.post(`${API_BASE}/quick-notes/`, {
         content: finalContent,
         priority: tempNotePriority,
         user_id: user.id || user._id,
@@ -628,40 +628,63 @@ export default function QuickNotes({
             )}
           </AnimatePresence>
           {/* VAULT UNLOCK MODAL */}
+          {/* VAULT UNLOCK / SETUP MODAL */}
           <AnimatePresence>
             {showVaultPrompt && (
               <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
                 <motion.div
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
-                  className="bg-stone-900 p-6 rounded-2xl border border-yellow-500/30 max-w-sm w-full text-center"
+                  className="bg-stone-900 p-6 rounded-2xl border border-yellow-500/30 max-w-sm w-full text-center shadow-2xl"
                 >
                   <Lock size={40} className="mx-auto text-yellow-500 mb-4" />
+
+                  {/* 👇 DYNAMIC TITLE */}
                   <h3 className="text-xl font-bold text-white mb-2">
-                    Unlock Shadow Vault
+                    {notes.some((n) => n.is_encrypted)
+                      ? "Unlock Shadow Vault"
+                      : "Setup Vault Password"}
                   </h3>
-                  <p className="text-xs text-gray-400 mb-4">
-                    Enter your vault password to decrypt/encrypt secret notes.
-                    <br />
-                    This password is <strong>never sent to the server</strong>.
+
+                  <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                    {notes.some((n) => n.is_encrypted)
+                      ? "Enter your password to decrypt your secret notes."
+                      : "Create a password for your encrypted notes. Don't forget it—there is no recovery!"}
                   </p>
 
                   <form onSubmit={unlockVault}>
                     <input
                       type="password"
                       autoFocus
-                      placeholder="Vault Password..."
+                      placeholder={
+                        notes.some((n) => n.is_encrypted)
+                          ? "Enter Vault Password..."
+                          : "Create New Password..."
+                      }
                       value={vaultPassword}
                       onChange={(e) => setVaultPassword(e.target.value)}
-                      className="w-full p-3 rounded-lg bg-black/50 border border-white/10 text-white outline-none focus:border-yellow-500 mb-4"
+                      className="w-full p-3 rounded-lg bg-black/50 border border-white/10 text-white outline-none focus:border-yellow-500 mb-4 focus:ring-1 focus:ring-yellow-500 transition-all"
                     />
                     <button
                       type="submit"
-                      className="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg"
+                      className="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg transition-colors"
                     >
-                      Unlock Vault
+                      {/* 👇 DYNAMIC BUTTON */}
+                      {notes.some((n) => n.is_encrypted)
+                        ? "Unlock Vault"
+                        : "Set Password & Encrypt"}
                     </button>
                   </form>
+
+                  <button
+                    onClick={() => {
+                      setShowVaultPrompt(false);
+                      setIsSecretMode(false); // Reset toggle if they cancel
+                    }}
+                    className="mt-4 text-xs text-gray-500 hover:text-gray-300 underline"
+                  >
+                    Cancel
+                  </button>
                 </motion.div>
               </div>
             )}

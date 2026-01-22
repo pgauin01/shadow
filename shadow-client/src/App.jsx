@@ -75,7 +75,7 @@ function App() {
       const [res1, res2, res3, res4] = await Promise.all([
         axios.get(`${API_BASE}/entries`, { params: { user_id: userId } }),
         axios.get(`${API_BASE}/events`, { params: { user_id: userId } }),
-        axios.get(`${API_BASE}/quick-notes`, { params: { user_id: userId } }),
+        axios.get(`${API_BASE}/quick-notes/`, { params: { user_id: userId } }),
         axios.get(`${API_BASE}/users/${userId}`),
       ]);
 

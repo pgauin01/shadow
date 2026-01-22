@@ -14,27 +14,26 @@ async def get_quick_notes(user_id: str):
     cursor = quick_notes_collection.find({"user_id": user_id}).sort("updated_at", -1)
     return await cursor.to_list(length=50)
 
-@router.post("/quick-notes", response_model=QuickNoteDB)
+@router.post("/", response_model=QuickNoteDB)
 async def create_quick_note(note: QuickNoteCreate):
-    # 1. Determine Priority
+    # 1. Define final_p (Handle "Auto" case)
     final_p = note.priority
     if note.priority == "Auto":
-        final_p = await detect_priority(note.content)
-
-    # 2. Create DB Object
+        final_p = "Medium"  # Default "Auto" to "Medium" for now
+    
+    # 2. Create the DB Object
     new_note = QuickNoteDB(
         content=note.content,
         priority=note.priority,
-        final_priority=final_p,
+        final_priority=final_p,  # 👈 Now this variable exists
         user_id=note.user_id,
-        workspace=note.workspace or "Main"
+        workspace=note.workspace or "Main",
+        is_encrypted=note.is_encrypted 
     )
     
-    # 3. Save to MongoDB
-    note_dict = new_note.model_dump(by_alias=True, exclude=["id"])
-    result = await quick_notes_collection.insert_one(note_dict)
-    
-    return await quick_notes_collection.find_one({"_id": result.inserted_id})
+    result = await quick_notes_collection.insert_one(new_note.model_dump(by_alias=True, exclude=["id"]))
+    created = await quick_notes_collection.find_one({"_id": result.inserted_id})
+    return created
 
 @router.put("/quick-notes/{note_id}", response_model=QuickNoteDB)
 async def update_quick_note(note_id: str, note: QuickNoteUpdate):
