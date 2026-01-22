@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from bson import ObjectId
+import secrets
 
 from app.database import users_collection
 from app.models import UserCreate, UserDB, ModeUpdate, WorkspaceUpdate
@@ -14,11 +15,16 @@ async def register(user: UserCreate):
     if await users_collection.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # 👇 NEW: Generate Unique Salt for this user
+    # This 32-char hex string (16 bytes) will be sent to frontend on login
+    if not user.profile.vault_salt:
+        user.profile.vault_salt = secrets.token_hex(16)
+
     # Create DB User
     new_user = UserDB(
         email=user.email,
         hashed_password=get_password_hash(user.password),
-        profile=user.profile
+        profile=user.profile # This now includes the vault_salt
     )
     
     await users_collection.insert_one(new_user.model_dump(by_alias=True, exclude=["id"]))

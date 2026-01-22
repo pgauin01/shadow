@@ -2,8 +2,12 @@
 
 // 1. Generate a Key from a Password (PBKDF2)
 // This ensures the same password always creates the same encryption key
-export const deriveKey = async (password) => {
+export const deriveKey = async (password, userSalt) => {
+  console.log("userSalt", userSalt);
+
   const enc = new TextEncoder();
+  // fallback for legacy users or during dev
+  const saltString = userSalt || "shadow-salt-v1";
   const keyMaterial = await window.crypto.subtle.importKey(
     "raw",
     enc.encode(password),
@@ -11,17 +15,16 @@ export const deriveKey = async (password) => {
     false,
     ["deriveKey"],
   );
-
   return window.crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: enc.encode("shadow-salt-v1"), // In prod, this should be unique per user
-      iterations: 100000,
+      salt: enc.encode(saltString), // 👈 Use the unique salt
+      iterations: 600000, // 👈 BUMP THIS UP (OWASP recommends 600k for SHA-256)
       hash: "SHA-256",
     },
     keyMaterial,
     { name: "AES-GCM", length: 256 },
-    false, // Key cannot be extracted
+    false,
     ["encrypt", "decrypt"],
   );
 };

@@ -13,7 +13,8 @@ class UserProfile(BaseModel):
     profession: str
     shadow_type: str = "Career Mode" # Added default
     current_focus: str 
-    workspaces: List[str] = ["Main", "Dev", "Personal"]
+    workspaces: List[str] = ["Main", "Personal"]
+    vault_salt: Optional[str] = None
 
 class UserCreate(BaseModel):
     email: EmailStr

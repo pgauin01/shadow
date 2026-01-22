@@ -54,6 +54,7 @@ export default function QuickNotes({
   const [vaultKey, setVaultKey] = useState(null); // The generated crypto key
   const [vaultPassword, setVaultPassword] = useState(""); // Input field
   const [showVaultPrompt, setShowVaultPrompt] = useState(false);
+  const [vaultError, setVaultError] = useState("");
 
   const scrollContainerRef = useRef(null);
 
@@ -132,10 +133,32 @@ export default function QuickNotes({
   const unlockVault = async (e) => {
     e.preventDefault();
     if (!vaultPassword) return;
-    const key = await deriveKey(vaultPassword);
-    setVaultKey(key);
+    setVaultError(""); // Clear previous errors
+
+    // 1. Derive the Candidate Key
+    // (Ensure you pass the salt if you implemented the previous step, otherwise just password)
+    const userSalt = user?.profile?.vault_salt;
+    const candidateKey = await deriveKey(vaultPassword, userSalt);
+
+    // 2. VERIFY: Test the key on an existing encrypted note
+    const testNote = notes.find((n) => n.is_encrypted && !n.decrypted);
+
+    if (testNote) {
+      // Try to decrypt ONE note first
+      const result = await decryptData(testNote.content, candidateKey);
+
+      // Check if it returned the specific fallback string from crypto.js
+      if (result === "🔒 [Encrypted Content]") {
+        setVaultError("Incorrect Password. Please try again.");
+        setVaultPassword(""); // Clear input
+        return; // 🛑 STOP! Do not close the modal.
+      }
+    }
+
+    // 3. Success! Key is valid.
+    setVaultKey(candidateKey);
     setShowVaultPrompt(false);
-    decryptAllNotes(key);
+    decryptAllNotes(candidateKey);
   };
 
   const decryptAllNotes = async (key) => {
@@ -644,6 +667,11 @@ export default function QuickNotes({
                       ? "Enter your password to decrypt your notes."
                       : "Create a password. Do not lose it; there is no recovery."}
                   </p>
+                  {vaultError && (
+                    <div className="mb-4 p-2 bg-red-500/20 border border-red-500/50 rounded text-red-200 text-xs font-bold animate-pulse">
+                      {vaultError}
+                    </div>
+                  )}
                   <form onSubmit={unlockVault}>
                     <input
                       type="password"
@@ -769,8 +797,18 @@ export default function QuickNotes({
               ) : (
                 // VIEW MODE
                 <>
-                  <div className="flex-1 overflow-hidden pointer-events-none">
-                    {/* Encrypted Placeholder */}
+                  <div className="flex-1 overflow-hidden pointer-events-none relative">
+                    {/* 👇 NEW: Visual Indicator for Decrypted Notes */}
+                    {note.is_encrypted && note.decrypted && (
+                      <div
+                        className="absolute top-0 right-0 z-10 bg-yellow-500/10 text-yellow-500 p-1 rounded-bl-lg rounded-tr-lg backdrop-blur-sm"
+                        title="Encrypted (Unlocked)"
+                      >
+                        <Lock size={12} strokeWidth={3} />
+                      </div>
+                    )}
+
+                    {/* Encrypted Placeholder vs Content */}
                     {note.is_encrypted && !note.decrypted ? (
                       <div className="flex flex-col items-center justify-center h-full text-stone-500 opacity-50">
                         <Lock size={24} className="mb-2" />
