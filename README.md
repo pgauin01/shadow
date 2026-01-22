@@ -1,146 +1,174 @@
-🌑 Shadow AI - Your Context-Aware Digital Twin
-Shadow is a next-generation Personal AI Assistant designed to be more than just a chatbot. It is a "Second Brain" that remembers your context, analyzes your daily logs, and proactively manages your schedule using Google Calendar integration.
+# 🌑 Shadow - AI Second Brain & Life OS
 
-Deployed and live at: http://shadowtodo.duckdns.org
+**Shadow** is a context-aware **AI Life Organizer** that helps you log your life, manage tasks, and recall memories. It combines a **Timeline Stream**, **Zero-Knowledge Encrypted Notes**, and an **AI Assistant** (powered by Google Gemini) that learns from your history.
 
-⚡ Key Features
-🧠 Cognitive Engine
-Context-Aware Chat: Powered by LangGraph, Shadow maintains conversation history and user persona context to provide personalized responses.
+Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **FAISS (Vector DB)**.
 
-Stream Analysis: Automatically categorizes user inputs into Activities (Logs), Rants (Venting), or Ideas (Sparks) using Gemini 1.5 Flash.
+---
 
-Persona Modes: Adaptable personality that switches between "Professional" (Concise) and "Gamer/Casual" (Witty) based on your profile settings.
+## ✨ Key Features
 
-📅 Calendar & Productivity
-Natural Language Scheduling: Create events simply by typing: "Book a meeting with Dale for 8 PM tonight" (Uses LLM Tool Calling).
+### 🧠 1. AI-Powered Memory (RAG)
 
-Google Calendar Sync: Full OAuth 2.0 integration to fetch and display real-time events.
+Shadow doesn't just store text; it _understands_ it.
 
-Quick Notes & Priority: A dedicated "Bookshelf" for fleeting thoughts, with AI-powered Auto-Priority detection (High/Medium/Low).
+- **Automatic Vector Embedding:** When you log a **"Rant"** (with high stress > 7) or a key **"Idea"**, Shadow automatically embeds it into a local **FAISS Vector Database**.
+- **Contextual Recall:** The Chat Assistant can retrieve past ideas or emotional patterns using Semantic Search.
+- _User:_ "What were my recent business ideas?"
+- _Shadow:_ Retrieves relevant logs from weeks ago using vector similarity.
 
-📊 Insights & Memory
-Daily Recap: Generates a midnight summary of your day's mood, productivity, and highlights.
+### 🔒 2. Zero-Knowledge "Secret Mode"
 
-Weekly Detective: Analyzes patterns in your logs to find correlations between your activities and mood.
+Your private thoughts should remain private.
 
-Vector Vault: High-value "Ideas" and major "Rants" are automatically embedded and stored in a Vector Database for long-term recall.
+- **Client-Side Encryption:** Notes marked as "Secret" are encrypted **in your browser** using **AES-GCM (256-bit)** before they ever touch the server.
+- **Unique Salting:** Uses **PBKDF2** with a unique, server-generated salt per user to prevent rainbow table attacks.
+- **No-Knowledge Server:** The backend only sees gibberish (`U2FsdGVk...`). If you lose your password, the data is gone forever.
 
-🏗️ Tech Stack
-Frontend
-Framework: React 19 (Vite)
+### 📝 3. Intelligent Timeline & Journaling
 
-Styling: TailwindCSS + Framer Motion (Animations)
+- **Stream Types:** Log `Activities`, `Rants`, or `Ideas`.
+- **AI Analysis:** Every entry is analyzed for **Impact Score (1-10)**, **Tags**, and **Sentiment**.
+- **Voice-to-Text:** Native browser speech recognition for hands-free logging.
+- **Daily Recap:** One-click AI summary of your entire day's timeline.
 
-HTTP Client: Axios
+### 📅 4. Natural Language Scheduling
 
-Icons: Lucide React
+- **Command:** "Schedule a meeting with John for Project X tomorrow at 10 AM."
+- **Action:** Shadow parses the intent and creates an event in your **Upcoming Events** list.
+- **Google Calendar Sync:** Two-way sync to keep your real life aligned.
 
-Backend
-Framework: FastAPI (Python 3.11+)
+---
 
-AI Model: Google Gemini 1.5 Flash
+## 🏗️ Architecture
 
-Orchestration: LangChain / LangGraph
+| Component     | Tech Stack                           | Description                                               |
+| ------------- | ------------------------------------ | --------------------------------------------------------- |
+| **Frontend**  | React, Vite, Tailwind, Framer Motion | Modern, responsive UI with "Professional" & "Life" modes. |
+| **Backend**   | Python, FastAPI                      | High-performance API handling auth, AI logic, and CRUD.   |
+| **Database**  | MongoDB (Motor)                      | Stores Users, Logs, Notes, and Events.                    |
+| **Vector DB** | FAISS + `all-MiniLM-L6-v2`           | Stores embeddings for semantic search (Long-term memory). |
+| **AI Engine** | Google Gemini 1.5 Flash              | Powers the reasoning, summarization, and chat.            |
+| **Crypto**    | Web Crypto API (SubtleCrypto)        | Native browser implementation of AES-GCM & PBKDF2.        |
 
-Database: MongoDB Atlas (Async Motor)
+---
 
-Authentication: OAuth2 (JWT) + Google OAuth 2.0
+## 🚀 Getting Started
 
-Vector Store: Pinecone / Atlas Vector Search
+### Prerequisites
 
-Infrastructure
-Deployment: Docker & Docker Compose
+- **Docker & Docker Compose** (Recommended)
+- OR **Node.js 18+** & **Python 3.10+** (Manual)
+- **Google Gemini API Key** (Get one [here](https://aistudio.google.com/))
+- **MongoDB Atlas URI** (or local Mongo)
 
-Hosting: Google Cloud Platform (Compute Engine)
+### 🛠️ Option 1: Docker (Fastest)
 
-Domain: DuckDNS with Custom CORS Configuration
+1. **Clone the repo:**
 
-🚀 Installation & Setup
+```bash
+git clone https://github.com/pgauin01/shadow.git
+cd shadow
 
-1. Prerequisites
-   Node.js (v18+)
+```
 
-Python (v3.10+)
+2. **Create `.env` file:**
 
-MongoDB Atlas Account
+```bash
+cp .env.example .env
+# Edit .env with your GEMINI_API_KEY and MONGO_URI
 
-Google Cloud Console Project (for OAuth)
+```
 
-2. Backend Setup
-   Bash
+3. **Run with Compose:**
 
-# Clone the repository
+```bash
+docker-compose -f docker-compose.prod.yml up --build -d
 
-git clone https://github.com/pgauin01/shadow
+```
 
-# Create virtual environment
+- Frontend: `http://localhost:80`
+- Backend: `http://localhost:8000`
 
+### 🛠️ Option 2: Manual Installation
+
+#### Backend
+
+```bash
+cd app
 python -m venv venv
-source venv/bin/activate # On Windows: venv\Scripts\activate
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r ../requirements.txt
+uvicorn app.main:app --reload
 
-# Install dependencies
+```
 
-pip install -r requirements.txt
-Environment Variables: Create a .env file in the root directory:
+#### Frontend
 
-Code snippet
-GOOGLE_API_KEY=your_gemini_key
-MONGO_URL=your_mongodb_connection_string
-SECRET_KEY=your_jwt_secret_key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-PINECONE_API_KEY=your_pinecone_key (Optional)
-Google Credentials:
-
-Download your OAuth 2.0 Client Secret JSON from Google Cloud Console.
-
-Rename it to client_secret.json and place it in the root folder.
-
-Run the Backend:
-
-Bash
-
-# Runs on http://localhost:8000
-
-python -m uvicorn app.main:app --reload 3. Frontend Setup
-Bash
+```bash
 cd shadow-client
 npm install
-
-# Run on http://localhost:5173
-
 npm run dev
-🐳 Docker Deployment
-Shadow is ready for containerization.
 
-Bash
+```
 
-# Build and Run Production Mode
+---
 
-docker compose -f docker-compose.prod.yml up -d --build
-📂 Project Structure
-Bash
-/shadow-app
-├── /app # Backend Logic
-│ ├── main.py # API Entry Points & CORS
-│ ├── ai_engine.py # Gemini 1.5 Prompts & Chains
-│ ├── ai_graph.py # LangGraph State Machine
-│ ├── auth.py # JWT Authentication
-│ ├── database.py # MongoDB Connection
-│ └── calendar_service.py # Google Calendar Sync
-├── /shadow-client # Frontend UI
-│ ├── src/components # React Components (Chat, Timeline, Auth)
-│ └── src/utils.js # Helper functions
-├── Dockerfile.backend # Python Container Config
-├── Dockerfile.frontend # Nginx/React Container Config
-└── docker-compose.prod.yml # Production Orchestration
-🔮 Roadmap
-[x] JWT Authentication: Secure login and registration.
+## 🛡️ Environment Variables (`.env`)
 
-[x] Daily Recap: AI generated summaries of daily logs.
+Create a `.env` file in the root directory:
 
-[x] Docker Support: Full containerization for GCP deployment.
+```env
+# Database
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/?retryWrites=true&w=majority
+DB_NAME=shadow_db
 
-[ ] Voice Mode: Implement Speech-to-Text for hands-free logging.
+# AI Engine
+GEMINI_API_KEY=your_google_gemini_key
 
-[ ] Mobile App: PWA or React Native port and electron for web based....
+# Security
+SECRET_KEY=your_jwt_secret_key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# Google Calendar (Optional)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+REDIRECT_URI=http://localhost:5173
+
+```
+
+---
+
+## 📖 Usage Guide
+
+### 🔐 Using the Secret Vault
+
+1. Go to **Quick Notes**.
+2. Click the **Unlock / Setup** button (Lock Icon) in the toolbar.
+3. Set a **Vault Password**.
+4. Toggle **"Secret"** mode ON.
+5. Any note you save will be encrypted.
+6. **Refresh the page** to lock the vault again.
+
+### 🗣️ Voice Input
+
+1. Click the **Microphone** icon in the Chat or Timeline input.
+2. Speak your log (e.g., _"I'm feeling really stressed about the deadline because..."_).
+3. Shadow captures the text. If it detects high stress (>7), it tags it as a **Rant** and saves it to the Vector DB for later therapy/analysis.
+
+### 🧠 RAG / Memory Recall
+
+1. Open the **Chat Assistant**.
+2. Ask: _"Why was I stressed last week?"_
+3. Shadow queries the **FAISS** index, finds the relevant "Rant" logs, and summarizes the cause.
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+
+## 📄 License
+
+[MIT](https://choosealicense.com/licenses/mit/)
