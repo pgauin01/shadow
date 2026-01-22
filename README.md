@@ -6,6 +6,8 @@ Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **FAISS (Vector DB)**
 
 ---
 
+live at- https://shadowtodo.duckdns.org/
+
 ## ✨ Key Features
 
 ### 🧠 1. AI-Powered Memory (RAG)
