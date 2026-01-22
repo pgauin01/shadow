@@ -9,7 +9,9 @@ import {
   Trash2,
   FileText,
   X,
-  ChevronDown, // Added this icon
+  ChevronDown,
+  Mic, // 👈 NEW
+  MicOff, // 👈 NEW
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -35,10 +37,13 @@ export default function Timeline({
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("All");
 
-  // --- NEW: Manual Type Selector State ---
-  const [manualType, setManualType] = useState("Auto"); // Default to Auto
+  // --- Manual Type Selector State ---
+  const [manualType, setManualType] = useState("Auto");
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const typeMenuRef = useRef(null);
+
+  // --- NEW: Voice Input State ---
+  const [isListening, setIsListening] = useState(false); // 👈 NEW
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -55,6 +60,51 @@ export default function Timeline({
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapContent, setRecapContent] = useState("");
 
+  // --- NEW: Voice Handler (Copied from ChatOverlay) ---
+  const handleVoiceInput = () => {
+    // 1. Browser Support Check
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice control requires Google Chrome or a supported browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    // 2. Start Listening
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch (err) {
+      console.error("Mic already active", err);
+    }
+
+    // 3. Handle Results
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0])
+        .map((result) => result.transcript)
+        .join("");
+      setInput(transcript);
+    };
+
+    // 4. Handle End
+    recognition.onend = () => setIsListening(false);
+
+    // 5. Handle Errors
+    recognition.onerror = (event) => {
+      console.error("Voice Error:", event.error);
+      setIsListening(false);
+      if (event.error === "not-allowed") {
+        alert("Microphone blocked. Please check your browser permissions.");
+      }
+    };
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -62,7 +112,6 @@ export default function Timeline({
     setLoading(true);
     const tempId = Date.now().toString();
 
-    // Use Manual Type if selected, otherwise "Processing..."
     const initialType = manualType !== "Auto" ? manualType : "Activity";
 
     const tempCard = {
@@ -70,7 +119,7 @@ export default function Timeline({
       raw_text: input,
       created_at: new Date().toISOString(),
       ai_metadata: {
-        stream_type: initialType, // Show user selection immediately
+        stream_type: initialType,
         summary: "Processing...",
         impact_score: 0,
         ai_comment: "Shadow is analyzing...",
@@ -80,21 +129,19 @@ export default function Timeline({
 
     setCards([tempCard, ...cards]);
     setInput("");
-    setManualType("Auto"); // Reset to Auto after sending
+    setManualType("Auto");
+    setLoading(false); // Set loading false immediately for UI responsiveness (Optimistic)
 
     try {
       const res = await axios.post(`${API_BASE}/entries`, {
         user_id: user.id,
         raw_text: tempCard.raw_text,
-        // Send the manual type to backend
         manual_stream_type: manualType !== "Auto" ? manualType : null,
       });
       setCards((prev) => prev.map((c) => (c._id === tempId ? res.data : c)));
     } catch (err) {
       console.error(err);
       setCards((prev) => prev.filter((c) => c._id !== tempId));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -131,9 +178,7 @@ export default function Timeline({
     return type === filter;
   });
 
-  // ... inside Timeline component
   const handleUpdateType = async (id, newType) => {
-    // 1. Optimistic UI Update (Instant change)
     setCards((prev) =>
       prev.map((c) => {
         if (c._id === id) {
@@ -146,18 +191,15 @@ export default function Timeline({
       }),
     );
 
-    // 2. API Call in Background
     try {
       await axios.put(`${API_BASE}/entries/${id}`, {
         stream_type: newType,
       });
     } catch (err) {
       console.error("Failed to update type", err);
-      // Optional: Revert changes if it fails
     }
   };
 
-  // Helper to get icon for the selector
   const getTypeIcon = (t) => {
     switch (t) {
       case "Activity":
@@ -167,7 +209,7 @@ export default function Timeline({
       case "Idea":
         return <Lightbulb size={14} className="text-yellow-500" />;
       default:
-        return <Sparkles size={14} className="text-purple-400" />; // Auto
+        return <Sparkles size={14} className="text-purple-400" />;
     }
   };
 
@@ -224,7 +266,7 @@ export default function Timeline({
                 key={card._id}
                 card={card}
                 onDelete={handleDelete}
-                onUpdateType={handleUpdateType} // 👈 Pass the new function
+                onUpdateType={handleUpdateType}
                 showInsights={showInsights}
                 onOpenRecap={(content) => {
                   setRecapContent(content);
@@ -285,17 +327,34 @@ export default function Timeline({
           </AnimatePresence>
         </div>
 
+        {/* 🎤 VOICE INPUT BUTTON (NEW) */}
+        <button
+          type="button"
+          onClick={handleVoiceInput}
+          className={`p-2.5 rounded-lg transition-all border border-transparent ${
+            isListening
+              ? "bg-red-500/20 text-red-500 border-red-500/50 animate-pulse" // Active State
+              : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10" // Inactive State
+          }`}
+          title="Voice Input"
+        >
+          {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+        </button>
+
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={
-            manualType === "Auto"
-              ? "Log an activity..."
-              : `Log an ${manualType}...`
+            isListening
+              ? "Listening..."
+              : manualType === "Auto"
+                ? "Log an activity..."
+                : `Log an ${manualType}...`
           }
-          className="flex-1 bg-transparent border-none outline-none text-sm placeholder-opacity-40"
+          className={`flex-1 bg-transparent border-none outline-none text-sm placeholder-opacity-40 transition-opacity ${isListening ? "opacity-50" : "opacity-100"}`}
           disabled={loading}
         />
+
         <button
           type="submit"
           disabled={loading || !input.trim()}
@@ -311,7 +370,7 @@ export default function Timeline({
         </button>
       </form>
 
-      {/* 4. RECAP MODAL (Same as before) */}
+      {/* 4. RECAP MODAL (Unchanged) */}
       <AnimatePresence>
         {showRecap && (
           <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -351,6 +410,7 @@ export default function Timeline({
   );
 }
 
+// ... StreamCard Component (Same as before) ...
 function StreamCard({
   card,
   onDelete,
@@ -368,21 +428,17 @@ function StreamCard({
   // 2. Click Outside Handler
   useEffect(() => {
     function handleClickOutside(event) {
-      // If menu is open AND click is outside the ref container...
       if (
         showTypeMenu &&
         menuRef.current &&
         !menuRef.current.contains(event.target)
       ) {
-        setShowTypeMenu(false); // Close it
+        setShowTypeMenu(false);
       }
     }
-
-    // Attach listener only when menu is open
     if (showTypeMenu) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -445,7 +501,6 @@ function StreamCard({
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                // Strict Black Background (As requested previously)
                 className="absolute top-full left-0 mt-1 z-50 w-24 bg-black border border-white/20 rounded-lg shadow-2xl overflow-hidden flex flex-col"
               >
                 {["Activity", "Rant", "Idea"].map((t) => (

@@ -113,10 +113,27 @@ function App() {
   };
 
   const logout = () => {
+    // 1. Clear Auth Data
     localStorage.removeItem("shadow_token");
     localStorage.removeItem("shadow_user_id");
+    localStorage.removeItem("shadow_scratchpad");
+
+    // 2. Clear Note Drafts (Crucial for Privacy)
+    // We iterate over all keys and remove ones starting with "shadow_draft_"
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("shadow_draft_")) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // 3. Reset State
     setToken(null);
     setUser(null);
+    setCards([]);
+    setEvents([]);
+    setQuickNotes([]);
+    setChatHistory([]);
+    addToast("Logged out successfully", "Goodbye", "info");
   };
 
   const handleGoogleSync = async () => {
@@ -170,6 +187,18 @@ function App() {
       setEvents(res.data);
     } catch (e) {
       console.error("Failed to refresh events", e);
+    }
+  };
+
+  const refreshNotes = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await axios.get(`${API_BASE}/quick-notes/`, {
+        params: { user_id: user.id },
+      });
+      setQuickNotes(res.data);
+    } catch (e) {
+      console.error("Failed to refresh notes", e);
     }
   };
 
@@ -264,6 +293,7 @@ function App() {
             mode={mode}
             sortByPriority={sortByPriority}
             panelColor={panelColor}
+            onRefresh={refreshNotes}
           />
         </div>
       </main>

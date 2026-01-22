@@ -87,6 +87,7 @@ class QuickNoteUpdate(BaseModel):
     priority: Optional[str] = None
     stream_type: Optional[str] = None
     workspace: Optional[str] = None
+    is_encrypted: Optional[bool] = None
 
 class QuickNoteDB(QuickNoteCreate):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

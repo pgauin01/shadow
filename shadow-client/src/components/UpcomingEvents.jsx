@@ -28,6 +28,64 @@ export default function UpcomingEvents({
     type: "Work",
   });
 
+  // 👇 UPDATED: Filter by Date AND Time
+  const sortedEvents = events
+    .filter((event) => {
+      if (!event.date) return false;
+
+      const now = new Date();
+      // Reset "now" seconds to 0 to avoid minor mismatches
+      now.setSeconds(0, 0);
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      // Parse Event Date (Local Time)
+      const eventDate = new Date(`${event.date}T00:00:00`);
+
+      // 1. If date is in the past (Yesterday or older), remove it.
+      if (eventDate < todayStart) return false;
+
+      // 2. If date is in the future (Tomorrow or later), keep it.
+      if (eventDate > todayStart) return true;
+
+      // 3. If date is TODAY, check the time.
+      if (!event.time || event.time === "All Day") return true;
+
+      try {
+        // Parse "10:00 AM" -> Hours/Minutes
+        const [timePart, modifier] = event.time.split(" ");
+        let [hours, minutes] = timePart.split(":").map(Number);
+
+        if (modifier === "PM" && hours !== 12) hours += 12;
+        if (modifier === "AM" && hours === 12) hours = 0;
+
+        const eventTime = new Date(eventDate);
+        eventTime.setHours(hours, minutes, 0, 0);
+
+        // Keep only if the event time is in the future
+        return eventTime >= now;
+      } catch (e) {
+        // If time parsing fails, default to showing the event
+        return true;
+      }
+    })
+    .sort((a, b) => {
+      const timeA = a.time === "All Day" || !a.time ? "00:00" : a.time;
+      const timeB = b.time === "All Day" || !b.time ? "00:00" : b.time;
+      // Simple string sort for date + time usually works if format is consistent
+      // But let's be safe with Date objects
+      const dtA = new Date(`${a.date} ${timeA}`); // format dependent
+      const dtB = new Date(`${b.date} ${timeB}`);
+
+      // Fallback if Date parsing fails (e.g. "10:00 AM" isn't native in all browsers without date)
+      // Better to compare ISO strings manually constructed:
+      return (
+        a.date.localeCompare(b.date) ||
+        new Date(`1970/01/01 ${timeA}`) - new Date(`1970/01/01 ${timeB}`)
+      );
+    });
+
   const handleAddEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.title) return;
@@ -41,11 +99,9 @@ export default function UpcomingEvents({
         user_id: user.id,
       });
 
-      const updatedList = [res.data, ...events].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
+      // Just add to list; the sortedEvents logic above will handle the sort/filter on render
+      setEvents([res.data, ...events]);
 
-      setEvents(updatedList);
       setNewEvent({ title: "", date: "", type: "Work" });
       setShowEventForm(false);
     } catch (e) {
@@ -98,21 +154,20 @@ export default function UpcomingEvents({
         </div>
       </div>
 
-      {/* EVENTS LIST */}
+      {/* EVENTS LIST (Uses sortedEvents now) */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-        {events.length === 0 ? (
+        {sortedEvents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-30 text-xs text-center">
             <Calendar size={32} className="mb-2" />
             <p>No upcoming events.</p>
           </div>
         ) : (
-          events.map((event) => (
+          sortedEvents.map((event) => (
             <div
               key={event._id}
               className="group relative p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/5 transition-all"
             >
               <div className="flex justify-between items-start mb-1">
-                {/* --- FIXED: Added Time Display Here --- */}
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider opacity-60 bg-white/5 px-1.5 py-0.5 rounded">
                   <span>{event.date}</span>
                   {event.time && (
@@ -172,7 +227,7 @@ export default function UpcomingEvents({
                 </button>
               </div>
 
-              {/* YOUR EXACT FORM CODE */}
+              {/* Form */}
               <motion.form
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
