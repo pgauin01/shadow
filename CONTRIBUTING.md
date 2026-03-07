@@ -5,14 +5,13 @@ First off, thank you for considering contributing to Shadow OS! It's people like
 ## 🛠️ Local Development Setup
 
 ### 1. Backend Setup
-1. Navigate to the `/app` directory.
-2. Create a virtual environment: `python -m venv venv`
-3. Activate the environment:
+1. Create a virtual environment: `python -m venv venv`
+2. Activate the environment:
    - Mac/Linux: `source venv/bin/activate`
    - Windows: `venv\Scripts\activate`
-4. Install dependencies: `pip install -r ../requirements.txt`
-5. Create your `.env` file (refer to `.env.example`).
-6. Start the FastAPI server: `uvicorn main:app --reload`
+3. Install dependencies: `pip install -r ../requirements.txt`
+4. Create your `.env` file (refer to `.env.example`).
+5. Start the FastAPI server: `uvicorn main:app --reload`
 
 ### 2. Frontend Setup
 1. Navigate to the `/shadow-client` directory.
