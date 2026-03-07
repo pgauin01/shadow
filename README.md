@@ -1,8 +1,24 @@
+<div align="center">
+
 # 🌑 Shadow - AI Second Brain & Life OS
 
-**Shadow** is a context-aware **AI Life Organizer** that helps you log your life, manage tasks, and recall memories. It combines a **Timeline Stream**, **Zero-Knowledge Encrypted Notes**, and an **AI Assistant** (powered by Google Gemini) that learns from your history.
+<p align="center">
+  <img src="https://img.shields.io/badge/React_Vite-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/Pinecone-000000?style=for-the-badge&logo=pinecone&logoColor=white" alt="Pinecone" />
+</p>
 
-Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **Pinecone (Vector DB)**.
+<p align="center">
+ <img width="1920" height="965" alt="ZenithAI-03-08-2026_01_30_AM" src="https://github.com/user-attachments/assets/b1da7ade-4746-4f2d-aea4-e1f3b1f79cdf" />
+</p>
+
+
+<br />
+
+**Shadow** is a context-aware **AI Life Organizer** that helps you log your life, manage tasks, and recall memories. It combines a **Timeline Stream**, **Zero-Knowledge Encrypted Notes**, and an **AI Assistant** that learns from your history.
+
+</div>
 
 ---
 
