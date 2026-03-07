@@ -48,7 +48,7 @@ Your private thoughts should remain private.
 graph TD
     A[💻 Frontend <br/> React + Tailwind] -->|REST API| B[⚙️ API Layer <br/> FastAPI]
     B -->|Context & History| C[🧠 LangGraph Orchestrator]
-    C <-->|Prompts & Reasoning| D[🤖 LLM <br/> Gemini 1.5 Flash]
+    C <-->|Prompts & Reasoning| D[🤖 LLM <br/> Gemini 2.5 Flash]
     C <-->|Semantic Search| E[(🗄️ Vector DB <br/> FAISS)]
     C <-->|CRUD Operations| F[(💾 Storage <br/> MongoDB)]
 ```
@@ -59,7 +59,7 @@ graph TD
 | **Backend**   | Python, FastAPI                      | High-performance API handling auth, AI logic, and CRUD.   |
 | **Database**  | MongoDB (Motor)                      | Stores Users, Logs, Notes, and Events.                    |
 | **Vector DB** | FAISS + `all-MiniLM-L6-v2`           | Stores embeddings for semantic search (Long-term memory). |
-| **AI Engine** | Google Gemini 1.5 Flash              | Powers the reasoning, summarization, and chat.            |
+| **AI Engine** | Google Gemini 2.5 Flash              | Powers the reasoning, summarization, and chat.            |
 | **Crypto**    | Web Crypto API (SubtleCrypto)        | Native browser implementation of AES-GCM & PBKDF2.        |
 
 ---
