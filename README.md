@@ -46,31 +46,31 @@ Your private thoughts should remain private.
 
 ```mermaid
 flowchart TD
-    subgraph Frontend [Client-Side (React + Vite)]
-        UI[💻 UI Components <br> (Shadow &amp; Zenith Modes)]
-        Crypto[🔐 Web Crypto API <br> (Zero-Knowledge Vault)]
-        UI &lt;--&gt;|Encrypts/Decrypts Locally| Crypto
+    subgraph Frontend
+        UI[💻 UI Components: Shadow and Zenith]
+        Crypto[🔐 Web Crypto API: Zero-Knowledge Vault]
+        UI &lt;--&gt;|Encrypts and Decrypts Locally| Crypto
     end
 
-    subgraph Backend [Server-Side (FastAPI)]
-        API[⚙️ API Routers <br> (Auth, Events, Notes)]
-        Graph[🧠 LangGraph Orchestrator <br> (ai_engine &amp; ai_graph)]
-        API &lt;--&gt;|Passes State &amp; History| Graph
+    subgraph Backend
+        API[⚙️ API Routers: Auth, Events, Notes]
+        Graph[🧠 LangGraph Orchestrator: AI Engine]
+        API &lt;--&gt;|Passes State and History| Graph
     end
 
-    subgraph Storage [Data Layer]
-        Mongo[(💾 MongoDB <br> Users, Events, Logs)]
-        FAISS[(🗄️ FAISS Vector DB <br> Semantic Memory)]
+    subgraph Storage
+        Mongo[(💾 MongoDB: Users, Events, Logs)]
+        FAISS[(🗄️ FAISS Vector DB: Semantic Memory)]
     end
 
-    subgraph External [External Services]
+    subgraph External Services
         Gemini[🤖 Google Gemini 1.5 Flash]
         GCal[📅 Google Calendar API]
     end
 
-    UI &lt;--&gt;|REST / JSON| API
+    UI &lt;--&gt;|REST API| API
     API &lt;--&gt;|CRUD Operations| Mongo
-    API &lt;--&gt;|OAuth / Event Sync| GCal
+    API &lt;--&gt;|Event Sync| GCal
     Graph &lt;--&gt;|Dynamic Prompts| Gemini
     Graph &lt;--&gt;|Similarity Search| FAISS
 ```
