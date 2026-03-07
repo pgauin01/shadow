@@ -6,7 +6,7 @@ Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **FAISS (Vector DB)**
 
 ---
 
-live at- https://shadowtodo.duckdns.org/
+
 
 ## ✨ Key Features
 
