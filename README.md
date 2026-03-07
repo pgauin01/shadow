@@ -1,22 +1,23 @@
+# Project Title
+
+A brief description of the project.
+
+## Architecture
 
 ```
-+----------------+          +--------------------+
-| React Frontend |          |     FastAPI        |
-|                |          |    Backend         |
-+----------------+          +--------------------+
-      |  (REST API)                |
-      |                            |
-      |                            |
-+-----------------+         +------------------+
-| Client-side     |         |     MongoDB       |
-| Encryption      |         |                  |
-+-----------------+         +------------------+
-                                   |
-                            +------------------+
-                            |   FAISS Vector DB |
-                            +------------------+
-                                   |
-                            +------------------+
-                            | Google Gemini API |
-                            +------------------+
+     +-------------------+
+     |   Component A     |
+     +-------------------+
+             |
+             |
+     +-------------------+
+     |   Component B     |
+     +-------------------+
 ```
+
+Here is the component table:
+
+| Component   | Description          |
+|-------------|----------------------|
+| A           | Description of A     |
+| B           | Description of B     |
