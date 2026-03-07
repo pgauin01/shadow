@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
- <img width="1920" height="965" alt="ZenithAI-03-08-2026_01_30_AM" src="https://github.com/user-attachments/assets/b1da7ade-4746-4f2d-aea4-e1f3b1f79cdf" />
+  <img width="1920" height="967" alt="ZenithAI-03-08-2026_02_21_AM" src="https://github.com/user-attachments/assets/5f9ecfc1-fc71-48c4-b526-1fed18824d05" />
 </p>
 
 
