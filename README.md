@@ -49,13 +49,13 @@ flowchart TD
     subgraph Frontend
         UI[💻 UI Components: Shadow and Zenith]
         Crypto[🔐 Web Crypto API: Zero-Knowledge Vault]
-        UI &lt;--&gt;|Encrypts and Decrypts Locally| Crypto
+        UI <-->|Encrypts and Decrypts Locally| Crypto
     end
 
     subgraph Backend
         API[⚙️ API Routers: Auth, Events, Notes]
         Graph[🧠 LangGraph Orchestrator: AI Engine]
-        API &lt;--&gt;|Passes State and History| Graph
+        API <-->|Passes State and History| Graph
     end
 
     subgraph Storage
@@ -68,11 +68,11 @@ flowchart TD
         GCal[📅 Google Calendar API]
     end
 
-    UI &lt;--&gt;|REST API| API
-    API &lt;--&gt;|CRUD Operations| Mongo
-    API &lt;--&gt;|Event Sync| GCal
-    Graph &lt;--&gt;|Dynamic Prompts| Gemini
-    Graph &lt;--&gt;|Similarity Search| FAISS
+    UI <-->|REST API| API
+    API <-->|CRUD Operations| Mongo
+    API <-->|Event Sync| GCal
+    Graph <-->|Dynamic Prompts| Gemini
+    Graph <-->|Similarity Search| FAISS
 ```
 
 | Component     | Tech Stack                           | Description                                               |
