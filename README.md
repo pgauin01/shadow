@@ -60,11 +60,11 @@ flowchart TD
 
     subgraph Storage
         Mongo[(💾 MongoDB: Users, Events, Logs)]
-        FAISS[(🗄️ FAISS Vector DB: Semantic Memory)]
+        Pinecone[(🗄️ Pinecone Vector DB: Semantic Memory)]
     end
 
     subgraph External Services
-        Gemini[🤖 Google Gemini 1.5 Flash]
+        Gemini[🤖 Google Gemini 2.5 Flash]
         GCal[📅 Google Calendar API]
     end
 
@@ -72,7 +72,7 @@ flowchart TD
     API <-->|CRUD Operations| Mongo
     API <-->|Event Sync| GCal
     Graph <-->|Dynamic Prompts| Gemini
-    Graph <-->|Similarity Search| FAISS
+    Graph <-->|Similarity Search| Pinecone
 ```
 
 | Component     | Tech Stack                           | Description                                               |
@@ -80,7 +80,7 @@ flowchart TD
 | **Frontend**  | React, Vite, Tailwind, Framer Motion | Modern, responsive UI with "Professional" & "Life" modes. |
 | **Backend**   | Python, FastAPI                      | High-performance API handling auth, AI logic, and CRUD.   |
 | **Database**  | MongoDB (Motor)                      | Stores Users, Logs, Notes, and Events.                    |
-| **Vector DB** | FAISS + `all-MiniLM-L6-v2`           | Stores embeddings for semantic search (Long-term memory). |
+| **Vector DB** | Pinecone + Google GenAI Embeddings   | Stores embeddings for semantic search (Long-term memory). |
 | **AI Engine** | Google Gemini 2.5 Flash              | Powers the reasoning, summarization, and chat.            |
 | **Crypto**    | Web Crypto API (SubtleCrypto)        | Native browser implementation of AES-GCM & PBKDF2.        |
 
@@ -94,6 +94,7 @@ flowchart TD
 - OR **Node.js 18+** & **Python 3.10+** (Manual)
 - **Google Gemini API Key** (Get one [here](https://aistudio.google.com/))
 - **MongoDB Atlas URI** (or local Mongo)
+- **Pinecone API Key** (Get one here)
 
 ### 🛠️ Option 1: Docker (Fastest)
 
@@ -156,8 +157,9 @@ Create a `.env` file in the root directory:
 MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/?retryWrites=true&w=majority
 DB_NAME=shadow_db
 
-# AI Engine
+# AI & Embeddings
 GEMINI_API_KEY=your_google_gemini_key
+PINECONE_API_KEY=your_pinecone_api_key
 
 # Security
 SECRET_KEY=your_jwt_secret_key
