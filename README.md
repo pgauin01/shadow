@@ -212,7 +212,7 @@ To enable syncing with Google Calendar, you must create OAuth 2.0 Client IDs in 
 
 1. Open the **Chat Assistant**.
 2. Ask: _"Why was I stressed last week?"_
-3. Shadow queries the **FAISS** index, finds the relevant "Rant" logs, and summarizes the cause.
+3. Shadow queries the **Pinecone** index, finds the relevant "Rant" logs, and summarizes the cause.
 
 ---
 
