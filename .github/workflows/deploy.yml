@@ -5,6 +5,9 @@ name: Deploy Shadow App
 #     branches:
 #       - main # Trigger on push to main branch
 
+on:
+  workflow_dispatch:
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
