@@ -176,7 +176,8 @@ HOST_USER=your_username
 
 To enable syncing with Google Calendar, you must create OAuth 2.0 Client IDs in the Google Cloud Console. Download the JSON file and save it exactly as client_secret.json in your project's working directory.
 
-Format Example:
+# Format Example:
+```json
 {
   "web": {
     "client_id": "your-client-id.apps.googleusercontent.com",
@@ -188,6 +189,7 @@ Format Example:
     "javascript_origins": ["http://localhost:8000"]
   }
 }
+```
 
 ## 📖 Usage Guide
 
