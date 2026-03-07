@@ -45,12 +45,34 @@ Your private thoughts should remain private.
 ## 🏗️ Architecture
 
 ```mermaid
-graph TD
-    A[💻 Frontend <br/> React + Tailwind] -->|REST API| B[⚙️ API Layer <br/> FastAPI]
-    B -->|Context & History| C[🧠 LangGraph Orchestrator]
-    C <-->|Prompts & Reasoning| D[🤖 LLM <br/> Gemini 2.5 Flash]
-    C <-->|Semantic Search| E[(🗄️ Vector DB <br/> FAISS)]
-    C <-->|CRUD Operations| F[(💾 Storage <br/> MongoDB)]
+flowchart TD
+    subgraph Frontend [Client-Side (React + Vite)]
+        UI[💻 UI Components <br> (Shadow &amp; Zenith Modes)]
+        Crypto[🔐 Web Crypto API <br> (Zero-Knowledge Vault)]
+        UI &lt;--&gt;|Encrypts/Decrypts Locally| Crypto
+    end
+
+    subgraph Backend [Server-Side (FastAPI)]
+        API[⚙️ API Routers <br> (Auth, Events, Notes)]
+        Graph[🧠 LangGraph Orchestrator <br> (ai_engine &amp; ai_graph)]
+        API &lt;--&gt;|Passes State &amp; History| Graph
+    end
+
+    subgraph Storage [Data Layer]
+        Mongo[(💾 MongoDB <br> Users, Events, Logs)]
+        FAISS[(🗄️ FAISS Vector DB <br> Semantic Memory)]
+    end
+
+    subgraph External [External Services]
+        Gemini[🤖 Google Gemini 1.5 Flash]
+        GCal[📅 Google Calendar API]
+    end
+
+    UI &lt;--&gt;|REST / JSON| API
+    API &lt;--&gt;|CRUD Operations| Mongo
+    API &lt;--&gt;|OAuth / Event Sync| GCal
+    Graph &lt;--&gt;|Dynamic Prompts| Gemini
+    Graph &lt;--&gt;|Similarity Search| FAISS
 ```
 
 | Component     | Tech Stack                           | Description                                               |
