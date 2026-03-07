@@ -44,13 +44,14 @@ Your private thoughts should remain private.
 
 ## 🏗️ Architecture
 
-mermaid
+```mermaid
 graph TD
     A[💻 Frontend <br/> React + Tailwind] -->|REST API| B[⚙️ API Layer <br/> FastAPI]
     B -->|Context & History| C[🧠 LangGraph Orchestrator]
     C <-->|Prompts & Reasoning| D[🤖 LLM <br/> Gemini 1.5 Flash]
     C <-->|Semantic Search| E[(🗄️ Vector DB <br/> FAISS)]
     C <-->|CRUD Operations| F[(💾 Storage <br/> MongoDB)]
+```
 
 | Component     | Tech Stack                           | Description                                               |
 | ------------- | ------------------------------------ | --------------------------------------------------------- |
