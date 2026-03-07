@@ -44,6 +44,14 @@ Your private thoughts should remain private.
 
 ## 🏗️ Architecture
 
+mermaid
+graph TD
+    A[💻 Frontend <br/> React + Tailwind] -->|REST API| B[⚙️ API Layer <br/> FastAPI]
+    B -->|Context & History| C[🧠 LangGraph Orchestrator]
+    C <-->|Prompts & Reasoning| D[🤖 LLM <br/> Gemini 1.5 Flash]
+    C <-->|Semantic Search| E[(🗄️ Vector DB <br/> FAISS)]
+    C <-->|CRUD Operations| F[(💾 Storage <br/> MongoDB)]
+
 | Component     | Tech Stack                           | Description                                               |
 | ------------- | ------------------------------------ | --------------------------------------------------------- |
 | **Frontend**  | React, Vite, Tailwind, Framer Motion | Modern, responsive UI with "Professional" & "Life" modes. |
