@@ -2,7 +2,7 @@
 
 **Shadow** is a context-aware **AI Life Organizer** that helps you log your life, manage tasks, and recall memories. It combines a **Timeline Stream**, **Zero-Knowledge Encrypted Notes**, and an **AI Assistant** (powered by Google Gemini) that learns from your history.
 
-Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **FAISS (Vector DB)**.
+Built with **React (Vite)**, **FastAPI**, **MongoDB**, and **Pinecone (Vector DB)**.
 
 ---
 
@@ -64,7 +64,7 @@ flowchart TD
     end
 
     subgraph External Services
-        Gemini[🤖 Google Gemini 2.5 Flash]
+        Gemini[🤖 Google Gemini 1.5 Flash]
         GCal[📅 Google Calendar API]
     end
 
@@ -81,8 +81,8 @@ flowchart TD
 | **Backend**   | Python, FastAPI                      | High-performance API handling auth, AI logic, and CRUD.   |
 | **Database**  | MongoDB (Motor)                      | Stores Users, Logs, Notes, and Events.                    |
 | **Vector DB** | Pinecone + Google GenAI Embeddings   | Stores embeddings for semantic search (Long-term memory). |
-| **AI Engine** | Google Gemini 2.5 Flash              | Powers the reasoning, summarization, and chat.            |
-| **Crypto**    | Web Crypto API (SubtleCrypto)        | Native browser implementation of AES-GCM & PBKDF2.        |
+| **AI Engine** | Google Gemini 1.5 Flash & LangChain  | Powers reasoning, text classification, and RAG chat.      |
+| **Auth/Crypto**| JWT, Argon2, Web Crypto API        | Argon2 for passwords, JWT for sessions, AES-GCM for notes..|
 
 ---
 
@@ -94,7 +94,7 @@ flowchart TD
 - OR **Node.js 18+** & **Python 3.10+** (Manual)
 - **Google Gemini API Key** (Get one [here](https://aistudio.google.com/))
 - **MongoDB Atlas URI** (or local Mongo)
-- **Pinecone API Key** (Get one here)
+- **Pinecone API Key** (Get one [here](https://www.pinecone.io/))
 
 ### 🛠️ Option 1: Docker (Fastest)
 
@@ -110,7 +110,7 @@ cd shadow
 
 ```bash
 cp .env.example .env
-# Edit .env with your GEMINI_API_KEY and MONGO_URI
+# Edit .env to add your keys (See Environment Variables below)
 
 ```
 
@@ -153,27 +153,41 @@ npm run dev
 Create a `.env` file in the root directory:
 
 ```env
-# Database
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/?retryWrites=true&w=majority
-DB_NAME=shadow_db
+# Database Configuration
+MONGO_URL=mongodb://localhost:27017
 
 # AI & Embeddings
-GEMINI_API_KEY=your_google_gemini_key
-PINECONE_API_KEY=your_pinecone_api_key
+GOOGLE_API_KEY=your_google_api_key_here
+PINECONE_API_KEY=your_pinecone_api_key_here
 
-# Security
-SECRET_KEY=your_jwt_secret_key
+# Security Settings
+SECRET_KEY=shadow_super_secret_key_change_me
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
 
-# Google Calendar (Optional)
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-REDIRECT_URI=http://localhost:5173
+# Deployment (Optional)
+HOST_IP=34.135.8.240
+HOST_USER=your_username
 
 ```
 
 ---
+
+## Google Calendar Integration (client_secret.json)
+
+To enable syncing with Google Calendar, you must create OAuth 2.0 Client IDs in the Google Cloud Console. Download the JSON file and save it exactly as client_secret.json in your project's working directory.
+
+Format Example:
+{
+  "web": {
+    "client_id": "your-client-id.apps.googleusercontent.com",
+    "project_id": "your-project-id",
+    "auth_uri": "[https://accounts.google.com/o/oauth2/auth](https://accounts.google.com/o/oauth2/auth)",
+    "token_uri": "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)",
+    "auth_provider_x509_cert_url": "[https://www.googleapis.com/oauth2/v1/certs](https://www.googleapis.com/oauth2/v1/certs)",
+    "client_secret": "your-client-secret",
+    "javascript_origins": ["http://localhost:8000"]
+  }
+}
 
 ## 📖 Usage Guide
 
